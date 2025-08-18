@@ -1,7 +1,7 @@
 // app/api/admin/tables/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
@@ -30,12 +30,15 @@ type ApiResponse = {
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "WAITER","KITCHEN"].includes(session.user.role)) {
+    if (
+      !session ||
+      !["ADMIN", "WAITER", "KITCHEN"].includes(session.user.role)
+    ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     //const restaurantId = session.user.restaurantId;
-    const restaurantId=1;
+    const restaurantId = 1;
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -85,7 +88,10 @@ export async function GET(req: Request) {
     return NextResponse.json(response);
   } catch (error) {
     console.error("GET /api/admin/tables", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -116,11 +122,14 @@ export async function POST(request: Request) {
     });
 
     if (existing) {
-      return NextResponse.json({ error: "Table number already exists in this restaurant" }, { status: 409 });
+      return NextResponse.json(
+        { error: "Table number already exists in this restaurant" },
+        { status: 409 }
+      );
     }
 
     const table = await prisma.table.create({
-       data:{
+      data: {
         number: parsed.data.number,
         location: parsed.data.location,
         capacity: parsed.data.capacity,
@@ -143,7 +152,8 @@ export async function PUT(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const id = Number(searchParams.get("id"));
-  if (isNaN(id)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  if (isNaN(id))
+    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
   const data = await request.json();
   const parsed = TableSchema.safeParse(data);
@@ -167,12 +177,15 @@ export async function PUT(request: Request) {
     });
 
     if (duplicate) {
-      return NextResponse.json({ error: "Another table has this number" }, { status: 409 });
+      return NextResponse.json(
+        { error: "Another table has this number" },
+        { status: 409 }
+      );
     }
 
     const updated = await prisma.table.update({
       where: { id },
-       data:{
+      data: {
         number: parsed.data.number,
         location: parsed.data.location,
         capacity: parsed.data.capacity,
@@ -194,7 +207,8 @@ export async function DELETE(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const id = Number(searchParams.get("id"));
-  if (isNaN(id)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  if (isNaN(id))
+    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
   try {
     const table = await prisma.table.findUnique({ where: { id } });
@@ -231,7 +245,7 @@ export async function PATCH(request: Request) {
 
     const updated = await prisma.table.update({
       where: { id: tableId },
-       data:{ status },
+      data: { status },
     });
 
     return NextResponse.json(updated);

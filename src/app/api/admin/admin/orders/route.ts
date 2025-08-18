@@ -1,7 +1,7 @@
 // app/api/admin/orders/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -46,7 +46,11 @@ export async function GET(req: NextRequest) {
     prisma.order.count({ where: whereClause }),
   ]);
 
-  return NextResponse.json({ orders, total, totalPages: Math.ceil(total / limit) });
+  return NextResponse.json({
+    orders,
+    total,
+    totalPages: Math.ceil(total / limit),
+  });
 }
 
 export async function PATCH(req: NextRequest) {

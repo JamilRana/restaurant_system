@@ -2,15 +2,23 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
 const StaffSchema = z.object({
   id: z.number().int().optional(),
   name: z.string().min(1, "Name is required"),
-  role: z.enum(["CHEF", "WAITER", "MANAGER", "CASHIER", "DELIVERY", "CLEANER", "OTHER"]),
-   email: z
+  role: z.enum([
+    "CHEF",
+    "WAITER",
+    "MANAGER",
+    "CASHIER",
+    "DELIVERY",
+    "CLEANER",
+    "OTHER",
+  ]),
+  email: z
     .string()
     .email("Invalid email")
     .nullish()
@@ -19,7 +27,7 @@ const StaffSchema = z.object({
     .string()
     .nullish()
     .transform((val) => (val === "" ? null : val)),
-   hireDate: z
+  hireDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
     .optional(),
@@ -37,7 +45,10 @@ export async function GET(request: Request) {
 
   const restaurantId = session.user.restaurantId;
   if (!restaurantId) {
-    return NextResponse.json({ error: "No restaurant assigned" }, { status: 403 });
+    return NextResponse.json(
+      { error: "No restaurant assigned" },
+      { status: 403 }
+    );
   }
 
   const { searchParams } = new URL(request.url);
@@ -89,7 +100,10 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("GET /api/admin/staff", error);
-    return NextResponse.json({ error: "Failed to load staff" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load staff" },
+      { status: 500 }
+    );
   }
 }
 
@@ -101,12 +115,13 @@ export async function POST(request: Request) {
 
   const restaurantId = session.user.restaurantId;
   if (!restaurantId) {
-    return NextResponse.json({ error: "No restaurant assigned" }, { status: 403 });
+    return NextResponse.json(
+      { error: "No restaurant assigned" },
+      { status: 403 }
+    );
   }
-  
 
   try {
-
     const data = await request.json();
     const parsed = StaffSchema.parse(data);
 
@@ -115,7 +130,10 @@ export async function POST(request: Request) {
         where: { email: parsed.email, restaurantId },
       });
       if (existing) {
-        return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+        return NextResponse.json(
+          { error: "Email already in use" },
+          { status: 409 }
+        );
       }
     }
 
@@ -137,19 +155,22 @@ export async function POST(request: Request) {
     return NextResponse.json(newStaff, { status: 201 });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-  return NextResponse.json(
-    {
-      error: "Validation failed",
-      details: error.issues.map((issue) => ({
-        field: issue.path.join("."),
-        message: issue.message,
-      })),
-    },
-    { status: 400 }
-  );
-}
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
     console.error("POST /api/admin/staff", error);
-    return NextResponse.json({ error: "Failed to create staff" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create staff" },
+      { status: 500 }
+    );
   }
 }
 
@@ -161,7 +182,10 @@ export async function PUT(request: Request) {
 
   const restaurantId = session.user.restaurantId;
   if (!restaurantId) {
-    return NextResponse.json({ error: "No restaurant assigned" }, { status: 403 });
+    return NextResponse.json(
+      { error: "No restaurant assigned" },
+      { status: 403 }
+    );
   }
 
   try {
@@ -169,7 +193,10 @@ export async function PUT(request: Request) {
     const parsed = StaffSchema.parse(data);
 
     if (!parsed.id) {
-      return NextResponse.json({ error: "Staff ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Staff ID is required" },
+        { status: 400 }
+      );
     }
 
     const staff = await prisma.staff.findUnique({ where: { id: parsed.id } });
@@ -182,13 +209,16 @@ export async function PUT(request: Request) {
         where: { email: parsed.email, restaurantId },
       });
       if (existing) {
-        return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+        return NextResponse.json(
+          { error: "Email already in use" },
+          { status: 409 }
+        );
       }
     }
 
     const updated = await prisma.staff.update({
       where: { id: parsed.id },
-       data:{
+      data: {
         name: parsed.name,
         role: parsed.role,
         email: parsed.email,
@@ -204,19 +234,22 @@ export async function PUT(request: Request) {
     return NextResponse.json(updated);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-  return NextResponse.json(
-    {
-      error: "Validation failed",
-      details: error.issues.map((issue) => ({
-        field: issue.path.join("."),
-        message: issue.message,
-      })),
-    },
-    { status: 400 }
-  );
-}
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          details: error.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
     console.error("PUT /api/admin/staff", error);
-    return NextResponse.json({ error: "Failed to update staff" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update staff" },
+      { status: 500 }
+    );
   }
 }
 
@@ -235,7 +268,10 @@ export async function DELETE(request: Request) {
 
   const restaurantId = session.user.restaurantId;
   if (!restaurantId) {
-    return NextResponse.json({ error: "No restaurant assigned" }, { status: 403 });
+    return NextResponse.json(
+      { error: "No restaurant assigned" },
+      { status: 403 }
+    );
   }
 
   try {
@@ -248,6 +284,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ message: "Staff deleted successfully" });
   } catch (error) {
     console.error("DELETE /api/admin/staff", error);
-    return NextResponse.json({ error: "Failed to delete staff" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete staff" },
+      { status: 500 }
+    );
   }
 }

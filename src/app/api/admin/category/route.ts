@@ -1,7 +1,7 @@
 // app/api/admin/category/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import fs from "fs";
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    } 
+    }
 
     const restaurantId = session.user.restaurantId;
     const { searchParams } = new URL(req.url);
@@ -98,7 +98,10 @@ export async function GET(req: Request) {
     return NextResponse.json(response);
   } catch (error) {
     console.error("GET /api/admin/category", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 export async function POST(req: Request) {
@@ -133,23 +136,28 @@ export async function POST(req: Request) {
     });
 
     if (!restaurant) {
-      return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Restaurant not found" },
+        { status: 404 }
+      );
     }
 
     // Check for duplicate within restaurant
     const existing = await prisma.category.findFirst({
       where: {
         name: {
-      mode: "insensitive", // ← This enables case-insensitive matching
-      equals: categoryName,
-    },
+          mode: "insensitive", // ← This enables case-insensitive matching
+          equals: categoryName,
+        },
         restaurantId,
       },
     });
 
     if (existing) {
       return NextResponse.json(
-        { error: "A category with this name already exists in your restaurant." },
+        {
+          error: "A category with this name already exists in your restaurant.",
+        },
         { status: 409 }
       );
     }
@@ -158,20 +166,32 @@ export async function POST(req: Request) {
 
     if (file) {
       if (!VALID_TYPES.includes(file.type)) {
-        return NextResponse.json({ error: "Only JPG, PNG, WebP images allowed." }, { status: 400 });
+        return NextResponse.json(
+          { error: "Only JPG, PNG, WebP images allowed." },
+          { status: 400 }
+        );
       }
 
       if (file.size > MAX_SIZE) {
-        return NextResponse.json({ error: "Image must be under 5MB." }, { status: 400 });
+        return NextResponse.json(
+          { error: "Image must be under 5MB." },
+          { status: 400 }
+        );
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
       const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-      const filename = `${categoryName.replace(/\s+/g, "_")}_${Date.now()}.${ext}`;
+      const filename = `${categoryName.replace(
+        /\s+/g,
+        "_"
+      )}_${Date.now()}.${ext}`;
       const filepath = path.join(UPLOAD_DIR, filename);
 
       await sharp(buffer)
-        .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, { fit: "inside", withoutEnlargement: true })
+        .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
         .jpeg({ quality: 80 })
         .png({ compressionLevel: 6 })
         .toFile(filepath);
@@ -190,7 +210,10 @@ export async function POST(req: Request) {
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
     console.error("POST /api/admin/category", error);
-    return NextResponse.json({ error: "Failed to create category" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create category" },
+      { status: 500 }
+    );
   }
 }
 
@@ -225,16 +248,19 @@ export async function PUT(req: Request) {
     });
 
     if (!category || category.restaurantId !== restaurantId) {
-      return NextResponse.json({ error: "Category not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Category not found" },
+        { status: 404 }
+      );
     }
 
     // Check for duplicate name (excluding self)
     const existing = await prisma.category.findFirst({
       where: {
         name: {
-      mode: "insensitive", // ← This enables case-insensitive matching
-      equals: parsed.data.name,
-    },
+          mode: "insensitive", // ← This enables case-insensitive matching
+          equals: parsed.data.name,
+        },
         restaurantId,
         NOT: { id },
       },
@@ -283,7 +309,10 @@ export async function PUT(req: Request) {
     return NextResponse.json(updated);
   } catch (error) {
     console.error("PUT /api/admin/category", error);
-    return NextResponse.json({ error: "Failed to update category" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update category" },
+      { status: 500 }
+    );
   }
 }
 
@@ -311,7 +340,10 @@ export async function DELETE(req: Request) {
     });
 
     if (!category || category.restaurantId !== restaurantId) {
-      return NextResponse.json({ error: "Category not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Category not found" },
+        { status: 404 }
+      );
     }
 
     // Delete image file
@@ -326,7 +358,10 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ message: "Category deleted successfully." });
   } catch (error) {
     console.error("DELETE /api/admin/category", error);
-    return NextResponse.json({ error: "Failed to delete category" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete category" },
+      { status: 500 }
+    );
   }
 }
 

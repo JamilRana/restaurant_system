@@ -1,7 +1,7 @@
 // app/api/admin/promocodes/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 
 type ApiResponse = {
@@ -34,8 +34,12 @@ export async function GET(request: Request) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "10");
   const search = searchParams.get("search") || "";
-  const dateFrom = searchParams.get("dateFrom") ? new Date(searchParams.get("dateFrom")!) : null;
-  const dateTo = searchParams.get("dateTo") ? new Date(searchParams.get("dateTo")!) : null;
+  const dateFrom = searchParams.get("dateFrom")
+    ? new Date(searchParams.get("dateFrom")!)
+    : null;
+  const dateTo = searchParams.get("dateTo")
+    ? new Date(searchParams.get("dateTo")!)
+    : null;
 
   const offset = (page - 1) * limit;
   const restaurantId = session.user.restaurantId;
@@ -50,7 +54,8 @@ export async function GET(request: Request) {
     if (dateFrom || dateTo) {
       whereClause.createdAt = {};
       if (dateFrom) whereClause.createdAt.gte = dateFrom;
-      if (dateTo) whereClause.createdAt.lte = new Date(dateTo.setHours(23, 59, 59));
+      if (dateTo)
+        whereClause.createdAt.lte = new Date(dateTo.setHours(23, 59, 59));
     }
 
     // ✅ Debug: Log the where clause
@@ -98,7 +103,10 @@ export async function POST(request: Request) {
 
   const restaurantId = session.user.restaurantId;
   if (!restaurantId) {
-    return NextResponse.json({ error: "Admin must belong to a restaurant" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Admin must belong to a restaurant" },
+      { status: 400 }
+    );
   }
 
   const formData = await request.formData();
@@ -109,11 +117,15 @@ export async function POST(request: Request) {
   const minOrderAmount = formData.get("minOrderAmount");
   const maxUses = formData.get("maxUses");
   const expiresAt = formData.get("expiresAt")?.toString();
-  const active = formData.get("active") === "on" || formData.get("active") === "true";
+  const active =
+    formData.get("active") === "on" || formData.get("active") === "true";
 
   // Validation
   if (!code) {
-    return NextResponse.json({ error: "Promo code is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Promo code is required" },
+      { status: 400 }
+    );
   }
   if (!discountPercent && !discountAmount) {
     return NextResponse.json(
@@ -132,30 +144,42 @@ export async function POST(request: Request) {
     });
 
     if (existing) {
-      return NextResponse.json({ error: "A promo code with this code already exists." }, { status: 409 });
+      return NextResponse.json(
+        { error: "A promo code with this code already exists." },
+        { status: 409 }
+      );
     }
 
     // ✅ Create with restaurant connection
     const promo = await prisma.promoCode.create({
-       data:{
+      data: {
         code,
-        discountPercent: discountPercent ? parseFloat(discountPercent as string) : null,
-        discountAmount: discountAmount ? parseFloat(discountAmount as string) : null,
-        minOrderAmount: minOrderAmount ? parseFloat(minOrderAmount as string) : null,
+        discountPercent: discountPercent
+          ? parseFloat(discountPercent as string)
+          : null,
+        discountAmount: discountAmount
+          ? parseFloat(discountAmount as string)
+          : null,
+        minOrderAmount: minOrderAmount
+          ? parseFloat(minOrderAmount as string)
+          : null,
         maxUses: maxUses ? parseInt(maxUses as string, 10) : null,
         currentUses: 0,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         active,
         restaurant: {
-          connect: { id: restaurantId } // ✅ Connect to restaurant
-        }
+          connect: { id: restaurantId }, // ✅ Connect to restaurant
+        },
       },
     });
 
     return NextResponse.json(promo, { status: 201 });
   } catch (error) {
     console.error("POST /api/admin/promocodes", error);
-    return NextResponse.json({ error: "Failed to create promo code" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create promo code" },
+      { status: 500 }
+    );
   }
 }
 // PUT: Update existing promo code
@@ -170,7 +194,8 @@ export async function PUT(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = Number(searchParams.get("id")); // ✅ Using query param
 
-  if (isNaN(id)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  if (isNaN(id))
+    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
   const formData = await request.formData();
   const promo = await prisma.promoCode.findUnique({ where: { id } });
@@ -187,7 +212,8 @@ export async function PUT(request: Request) {
   const minOrderAmount = formData.get("minOrderAmount");
   const maxUses = formData.get("maxUses");
   const expiresAt = formData.get("expiresAt")?.toString();
-  const active = formData.get("active") === "true" || formData.get("active") === "on";
+  const active =
+    formData.get("active") === "true" || formData.get("active") === "on";
 
   // Prevent duplicate code
   if (code && code !== promo.code) {
@@ -195,18 +221,27 @@ export async function PUT(request: Request) {
       where: { code, restaurantId: session.user.restaurantId },
     });
     if (existing) {
-      return NextResponse.json({ error: "A promo code with this code already exists." }, { status: 409 });
+      return NextResponse.json(
+        { error: "A promo code with this code already exists." },
+        { status: 409 }
+      );
     }
   }
 
   try {
     const updated = await prisma.promoCode.update({
       where: { id },
-       data:{
+      data: {
         code: code || promo.code,
-        discountPercent: discountPercent ? parseFloat(discountPercent as string) : null,
-        discountAmount: discountAmount ? parseFloat(discountAmount as string) : null,
-        minOrderAmount: minOrderAmount ? parseFloat(minOrderAmount as string) : null,
+        discountPercent: discountPercent
+          ? parseFloat(discountPercent as string)
+          : null,
+        discountAmount: discountAmount
+          ? parseFloat(discountAmount as string)
+          : null,
+        minOrderAmount: minOrderAmount
+          ? parseFloat(minOrderAmount as string)
+          : null,
         maxUses: maxUses ? parseInt(maxUses as string, 10) : null,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         active,
@@ -228,7 +263,8 @@ export async function DELETE(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const id = Number(searchParams.get("id"));
-  if (isNaN(id)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  if (isNaN(id))
+    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
   const promo = await prisma.promoCode.findUnique({ where: { id } });
   if (!promo) return NextResponse.json({ error: "Not found" }, { status: 404 });

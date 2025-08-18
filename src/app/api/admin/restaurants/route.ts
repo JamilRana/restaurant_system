@@ -1,7 +1,7 @@
 // app/api/admin/restaurants/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import fs from "fs";
@@ -34,13 +34,19 @@ export async function GET() {
     });
 
     if (!restaurant) {
-      return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Restaurant not found" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json(restaurant);
   } catch (error) {
     console.error("GET /api/admin/restaurants", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -65,7 +71,10 @@ export async function PUT(req: Request) {
 
     const restaurant = await prisma.restaurant.findFirst();
     if (!restaurant) {
-      return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Restaurant not found" },
+        { status: 404 }
+      );
     }
 
     let logoPath = restaurant.logoPath;
@@ -73,22 +82,28 @@ export async function PUT(req: Request) {
     if (file) {
       const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
       if (!validTypes.includes(file.type)) {
-        return NextResponse.json({ error: "Invalid image type" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid image type" },
+          { status: 400 }
+        );
       }
 
-             const bytes = await file.arrayBuffer();
-                  const uint8Array = new Uint8Array(bytes);
-                  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-                  const filename = `category_${randomBytes(8).toString("hex")}.${ext}`;
-                  const filepath = path.join(UPLOAD_DIR, filename);
-            
-                  try {
-                    await fs.promises.writeFile(filepath, uint8Array);
-                    logoPath = `/logo/${filename}`;
-                  } catch (err) {
-                    console.error("File write error:", err);
-                    return NextResponse.json({ error: "Failed to save image" }, { status: 500 });
-                  }
+      const bytes = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(bytes);
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const filename = `category_${randomBytes(8).toString("hex")}.${ext}`;
+      const filepath = path.join(UPLOAD_DIR, filename);
+
+      try {
+        await fs.promises.writeFile(filepath, uint8Array);
+        logoPath = `/logo/${filename}`;
+      } catch (err) {
+        console.error("File write error:", err);
+        return NextResponse.json(
+          { error: "Failed to save image" },
+          { status: 500 }
+        );
+      }
 
       // Remove old logo
       if (restaurant.logoPath) {
@@ -111,7 +126,10 @@ export async function PUT(req: Request) {
     return NextResponse.json(updated);
   } catch (error) {
     console.error("PUT /api/admin/restaurants", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 

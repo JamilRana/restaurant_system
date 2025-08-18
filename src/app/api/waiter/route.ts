@@ -1,17 +1,17 @@
 // app/api/waiter/orders/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Pusher from "pusher";
 
 const pusher = new Pusher({
-appId: process.env.PUSHER_APP_ID!, 
-key: process.env.NEXT_PUBLIC_PUSHER_KEY!, 
-secret: process.env.PUSHER_SECRET!, 
-cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!, 
-useTLS: true,
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+  useTLS: true,
 });
 
 const CreateOrderSchema = z.object({
@@ -30,23 +30,21 @@ const CreateOrderSchema = z.object({
   promoCode: z.string().optional(),
 });
 
-
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session || !["ADMIN", "WAITER", "KITCHEN"].includes(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-//   const restaurantId = session.user.restaurantId;
-const restaurantId = 1;
+  //   const restaurantId = session.user.restaurantId;
+  const restaurantId = 1;
   if (!restaurantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const data = await request.json();
- 
-  const round2 = (num: number) => Math.round(num * 100) / 100;
 
+  const round2 = (num: number) => Math.round(num * 100) / 100;
 
   const parsed = CreateOrderSchema.safeParse(data);
 
@@ -58,7 +56,15 @@ const restaurantId = 1;
     );
   }
 
-  const { tableId, deliveryType, guestName, guestEmail, items, orderNote, promoCode } = parsed.data;
+  const {
+    tableId,
+    deliveryType,
+    guestName,
+    guestEmail,
+    items,
+    orderNote,
+    promoCode,
+  } = parsed.data;
 
   try {
     // Validate table (if dine-in)
@@ -74,7 +80,7 @@ const restaurantId = 1;
       if (table.status === "AVAILABLE") {
         await prisma.table.update({
           where: { id: tableId },
-           data:{ status: "OCCUPIED" }, // ✅ Fixed: no `data:`
+          data: { status: "OCCUPIED" }, // ✅ Fixed: no `data:`
         });
       }
     }
@@ -89,7 +95,10 @@ const restaurantId = 1;
     });
 
     if (foodItems.length !== new Set(items.map((i) => i.foodId)).size) {
-      return NextResponse.json({ error: "One or more food items not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "One or more food items not found" },
+        { status: 404 }
+      );
     }
 
     // Calculate total
@@ -106,7 +115,6 @@ const restaurantId = 1;
 
       const itemPrice = food.price + (option?.price || 0);
       totalAmount += itemPrice * item.quantity;
-
 
       orderItemsData.push({
         foodId: food.id,
@@ -129,12 +137,12 @@ const restaurantId = 1;
         if (totalAmount >= (promo.minOrderAmount || 0)) {
           discountAmount = promo.discountAmount
             ? promo.discountAmount
-            : (totalAmount * (promo.discountPercent! / 100));
-            finalAmount = round2(totalAmount - discountAmount);
+            : totalAmount * (promo.discountPercent! / 100);
+          finalAmount = round2(totalAmount - discountAmount);
 
           await prisma.promoCode.update({
             where: { id: promo.id },
-             data:{ currentUses: { increment: 1 } },
+            data: { currentUses: { increment: 1 } },
           });
         }
       }
@@ -152,12 +160,12 @@ const restaurantId = 1;
         if (customer.name !== guestName) {
           await prisma.customer.update({
             where: { id: customer.id },
-             data:{ name: guestName },
+            data: { name: guestName },
           });
         }
       } else {
         customer = await prisma.customer.create({
-           data:{
+          data: {
             name: guestName,
             email: guestEmail,
             phone: null,
@@ -170,7 +178,9 @@ const restaurantId = 1;
         });
       }
     } else {
-      const anonEmail = `${guestName.toLowerCase().replace(/\s+/g, "_")}_guest_${restaurantId}@anon.local`;
+      const anonEmail = `${guestName
+        .toLowerCase()
+        .replace(/\s+/g, "_")}_guest_${restaurantId}@anon.local`;
 
       customer = await prisma.customer.findFirst({
         where: {
@@ -183,7 +193,7 @@ const restaurantId = 1;
 
       if (!customer) {
         customer = await prisma.customer.create({
-           data:{
+          data: {
             name: guestName,
             email: anonEmail,
             phone: null,
@@ -200,7 +210,7 @@ const restaurantId = 1;
     // Update stats
     await prisma.customer.update({
       where: { id: customer.id },
-       data:{
+      data: {
         totalSpent: { increment: finalAmount },
         orderCount: { increment: 1 },
       },
@@ -208,7 +218,7 @@ const restaurantId = 1;
 
     // Create order
     const order = await prisma.order.create({
-       data:{
+      data: {
         totalAmount,
         finalAmount,
         discountAmount,
@@ -241,7 +251,7 @@ const restaurantId = 1;
     if (tableId) {
       await prisma.table.update({
         where: { id: tableId },
-         data:{ currentOrderId: order.id },
+        data: { currentOrderId: order.id },
       });
     }
 
@@ -264,6 +274,9 @@ const restaurantId = 1;
     return NextResponse.json(order, { status: 201 });
   } catch (error: any) {
     console.error("Create waiter order failed:", error);
-    return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create order" },
+      { status: 500 }
+    );
   }
 }

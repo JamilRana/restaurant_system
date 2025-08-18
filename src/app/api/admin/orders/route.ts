@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "../../../../lib/authOptions";
 
 // app/api/admin/orders/route.ts
 export async function GET(request: Request) {
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       { customer: { name: { contains: search, mode: "insensitive" } } },
     ];
   }
-    if (startDate || endDate) {
+  if (startDate || endDate) {
     whereClause.createdAt = {};
     if (startDate) whereClause.createdAt.gte = new Date(startDate);
     if (endDate) whereClause.createdAt.lte = new Date(endDate);

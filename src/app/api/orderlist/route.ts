@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "../../../lib/authOptions";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       prisma.order.findMany({
         where: whereClause,
         include: {
-          restaurant: { select: { name: true, id:true } },
+          restaurant: { select: { name: true, id: true } },
           items: { include: { food: true } },
         },
         skip: (page - 1) * limit,

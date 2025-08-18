@@ -1,8 +1,7 @@
-
 // app/api/admin/food/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { foodSchema } from "@/lib/schemas/foodSchema";
 import fs from "fs";
@@ -44,10 +43,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-        const restaurantId = session.user.restaurantId;
-if (!restaurantId) {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
+    const restaurantId = session.user.restaurantId;
+    if (!restaurantId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -90,7 +89,10 @@ if (!restaurantId) {
     return NextResponse.json(response);
   } catch (error) {
     console.error("GET /api/admin/food", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -155,7 +157,10 @@ export async function POST(req: Request) {
     if (file) {
       const buffer = Buffer.from(await file.arrayBuffer());
       if (!VALID_TYPES.includes(file.type)) {
-        return NextResponse.json({ error: "Invalid image type" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid image type" },
+          { status: 400 }
+        );
       }
       if (file.size > MAX_SIZE) {
         return NextResponse.json({ error: "Image too large" }, { status: 400 });
@@ -210,7 +215,10 @@ export async function POST(req: Request) {
     return NextResponse.json(food, { status: 201 });
   } catch (error) {
     console.error("POST /api/admin/food", error);
-    return NextResponse.json({ error: "Failed to create food" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create food" },
+      { status: 500 }
+    );
   }
 }
 

@@ -1,7 +1,7 @@
 // app/api/admin/delivery-zones/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -60,7 +60,10 @@ export async function GET(req: Request) {
     return NextResponse.json(response); // ✅ Fixed: was sending `zones`
   } catch (error) {
     console.error("GET /api/admin/delivery-zones", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -83,7 +86,10 @@ export async function POST(req: Request) {
     });
 
     if (existing) {
-      return NextResponse.json({ error: "Postcode already exists" }, { status: 409 });
+      return NextResponse.json(
+        { error: "Postcode already exists" },
+        { status: 409 }
+      );
     }
 
     const zone = await prisma.deliveryZone.create({
@@ -103,7 +109,10 @@ export async function POST(req: Request) {
       );
     }
     console.error("POST /api/admin/delivery-zones", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -135,7 +144,10 @@ export async function PUT(req: Request) {
         where: { postcode: data.postcode, restaurantId },
       });
       if (existing) {
-        return NextResponse.json({ error: "Postcode already exists" }, { status: 409 });
+        return NextResponse.json(
+          { error: "Postcode already exists" },
+          { status: 409 }
+        );
       }
     }
 
@@ -150,7 +162,10 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
     console.error("PUT /api/admin/delivery-zones", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -169,7 +184,9 @@ export async function DELETE(req: Request) {
     }
 
     const zoneId = parseInt(id);
-    const zone = await prisma.deliveryZone.findUnique({ where: { id: zoneId } });
+    const zone = await prisma.deliveryZone.findUnique({
+      where: { id: zoneId },
+    });
 
     if (!zone || zone.restaurantId !== session.user.restaurantId) {
       return NextResponse.json({ error: "Zone not found" }, { status: 404 });
@@ -179,6 +196,9 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ message: "Zone deleted" });
   } catch (error) {
     console.error("DELETE /api/admin/delivery-zones", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

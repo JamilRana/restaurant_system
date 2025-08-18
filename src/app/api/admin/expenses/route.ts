@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "../../../../lib/authOptions";
 import { ExpenseCategory, StaffRole } from "@prisma/client"; // Optional: import types
 
 export async function GET(request: Request) {
@@ -102,7 +102,10 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Fetch expenses error:", error);
-    return NextResponse.json({ error: "Failed to load expenses" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load expenses" },
+      { status: 500 }
+    );
   }
 }
 
@@ -117,7 +120,10 @@ export async function POST(request: Request) {
   const restaurantId = session.user.restaurantId;
 
   if (!restaurantId) {
-    return NextResponse.json({ error: "No restaurant assigned" }, { status: 403 });
+    return NextResponse.json(
+      { error: "No restaurant assigned" },
+      { status: 403 }
+    );
   }
 
   if (!data.description || !data.category || typeof data.amount !== "number") {
@@ -145,7 +151,10 @@ export async function POST(request: Request) {
     return NextResponse.json(expense, { status: 201 });
   } catch (error) {
     console.error("Create expense error:", error);
-    return NextResponse.json({ error: "Failed to record expense" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to record expense" },
+      { status: 500 }
+    );
   }
 }
 
@@ -160,7 +169,10 @@ export async function PUT(request: Request) {
   const { id, ...updateData } = data;
 
   if (!id) {
-    return NextResponse.json({ error: "Expense ID is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Expense ID is required" },
+      { status: 400 }
+    );
   }
 
   try {
@@ -181,6 +193,9 @@ export async function PUT(request: Request) {
     return NextResponse.json(expense);
   } catch (error) {
     console.error("Update expense error:", error);
-    return NextResponse.json({ error: "Failed to update expense" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update expense" },
+      { status: 500 }
+    );
   }
 }

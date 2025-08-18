@@ -2,9 +2,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "../../../lib/authOptions";
 import { $Enums } from "@prisma/client";
-
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -18,7 +17,11 @@ export async function GET(request: Request) {
   const statusFilter = searchParams.get("status") || "";
   const search = searchParams.get("search") || "";
 
-  const validStatuses: $Enums.OrderStatus[] = ["accepted", "preparing", "ready"];
+  const validStatuses: $Enums.OrderStatus[] = [
+    "accepted",
+    "preparing",
+    "ready",
+  ];
 
   // Base where clause
   let whereClause: any = { status: { in: validStatuses } };
@@ -42,24 +45,24 @@ export async function GET(request: Request) {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-items: { 
-    include: { 
-      food: true,
-      foodOption: true,
-    },
-    orderBy: { addedAt: "asc" }
-  },
-  customer: { select: { name: true } },
-  createdBy: { 
-    select: { 
-      id: true, 
-      email: true,
-      staff: { select: { name: true } } 
-    }  
-  }
-  },
-    orderBy: { createdAt: "desc" },
-}),
+          items: {
+            include: {
+              food: true,
+              foodOption: true,
+            },
+            orderBy: { addedAt: "asc" },
+          },
+          customer: { select: { name: true } },
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              staff: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
       prisma.order.count({ where: whereClause }),
       prisma.order.groupBy({
         by: ["status"],
@@ -69,7 +72,11 @@ items: {
             ? {
                 OR: [
                   { id: { equals: parseInt(search) || -1 } },
-                  { customer: { name: { contains: search, mode: "insensitive" } } },
+                  {
+                    customer: {
+                      name: { contains: search, mode: "insensitive" },
+                    },
+                  },
                 ],
               }
             : {}),
@@ -97,6 +104,9 @@ items: {
     });
   } catch (error) {
     console.error("GET /api/kitchen", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

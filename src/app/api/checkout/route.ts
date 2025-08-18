@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Stripe } from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "../../../lib/authOptions";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-06-30.basil",
@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No items provided" }, { status: 400 });
     }
     if (!timeSlot) {
-      return NextResponse.json({ error: "Time slot is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Time slot is required" },
+        { status: 400 }
+      );
     }
     if (deliveryMode === "delivery" && (!address || !postcode)) {
       return NextResponse.json(
@@ -67,7 +70,10 @@ export async function POST(req: NextRequest) {
       });
 
       if (!user || !user.customer) {
-        return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Customer not found" },
+          { status: 404 }
+        );
       }
 
       customerId = user.customer.id;
@@ -75,7 +81,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Calculate total
-    const itemTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const itemTotal = items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
     const delivery = deliveryMode === "delivery" ? deliveryFee : 0;
     const totalAmount = itemTotal + delivery;
 
@@ -139,34 +148,34 @@ export async function POST(req: NextRequest) {
     ];
 
     // Create Stripe session
-// Inside POST handler
-const checkoutSession = await stripe.checkout.sessions.create({
-  payment_method_types: ["card"],
-  mode: "payment",
-  line_items: lineItems,
-  success_url: `${req.nextUrl.origin}/order-status?session_id={CHECKOUT_SESSION_ID}&success=true`,
-  cancel_url: `${req.nextUrl.origin}/Checkout?canceled=true`,
-  metadata: {
-  items: JSON.stringify(items),
-  deliveryFee: deliveryFee.toString(),
-  timeSlot,
-  address,
-  postcode,
-  deliveryMode,
-  orderNote,
-  promoCode,
-  isGuestOrder: isGuestOrder.toString(),
-  guestName,
-  guestEmail,
-  customerId: customerId.toString(),
-  restaurantId: restaurantId.toString(),
-  finalAmount: finalAmount.toString(),
-  paymentStatus: "paid",
-  paymentMethod: "card",
-  deliveryType: deliveryMode === "delivery" ? "DELIVERY" : "PICKUP",
-  status: "placed",
-}
-});
+    // Inside POST handler
+    const checkoutSession = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: lineItems,
+      success_url: `${req.nextUrl.origin}/order-status?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      cancel_url: `${req.nextUrl.origin}/Checkout?canceled=true`,
+      metadata: {
+        items: JSON.stringify(items),
+        deliveryFee: deliveryFee.toString(),
+        timeSlot,
+        address,
+        postcode,
+        deliveryMode,
+        orderNote,
+        promoCode,
+        isGuestOrder: isGuestOrder.toString(),
+        guestName,
+        guestEmail,
+        customerId: customerId.toString(),
+        restaurantId: restaurantId.toString(),
+        finalAmount: finalAmount.toString(),
+        paymentStatus: "paid",
+        paymentMethod: "card",
+        deliveryType: deliveryMode === "delivery" ? "DELIVERY" : "PICKUP",
+        status: "placed",
+      },
+    });
 
     return NextResponse.json({ url: checkoutSession.url });
   } catch (error: any) {

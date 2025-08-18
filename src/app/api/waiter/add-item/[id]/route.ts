@@ -1,7 +1,7 @@
 // app/api/waiter/add-item/[id]/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import Pusher from "pusher";
 
@@ -12,7 +12,6 @@ const pusher = new Pusher({
   cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
   useTLS: true,
 });
-
 
 export async function PATCH(
   request: Request,
@@ -34,7 +33,8 @@ export async function PATCH(
     include: { order: { include: { restaurant: true } } },
   });
 
-  if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+  if (!item)
+    return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
   if (item.order.restaurant.id !== session.user.restaurantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -45,16 +45,15 @@ export async function PATCH(
   try {
     await prisma.orderItem.update({
       where: { id: itemId },
-       data:{
+      data: {
         quantity: quantity || 1,
         foodOptionId: foodOptionId || null,
-
       },
     });
 
     const order = await prisma.order.update({
       where: { id: item.orderId },
-       data:{},
+      data: {},
       include: {
         items: { include: { food: { include: { options: true } } } },
         table: { select: { number: true } },
@@ -62,7 +61,11 @@ export async function PATCH(
       },
     });
 
-    await pusher.trigger(`restaurant-${order.restaurantId}`, "order-updated", order);
+    await pusher.trigger(
+      `restaurant-${order.restaurantId}`,
+      "order-updated",
+      order
+    );
 
     return NextResponse.json(order);
   } catch (error) {
@@ -91,7 +94,8 @@ export async function DELETE(
     include: { order: { include: { restaurant: true } } },
   });
 
-  if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+  if (!item)
+    return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
   if (item.order.restaurant.id !== session.user.restaurantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -102,7 +106,7 @@ export async function DELETE(
 
     const order = await prisma.order.update({
       where: { id: item.orderId },
-       data:{},
+      data: {},
       include: {
         items: { include: { food: { include: { options: true } } } },
         table: { select: { number: true } },
@@ -110,7 +114,11 @@ export async function DELETE(
       },
     });
 
-    await pusher.trigger(`restaurant-${order.restaurantId}`, "order-updated", order);
+    await pusher.trigger(
+      `restaurant-${order.restaurantId}`,
+      "order-updated",
+      order
+    );
 
     return NextResponse.json(order);
   } catch (error) {

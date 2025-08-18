@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { sendEmail } from "@/lib/notifications/email";
 import { generateReceiptPdf } from "@/lib/generateReceiptPdf";
 
@@ -39,7 +39,10 @@ export async function PATCH(
 
   // ✅ Validate it's one of the allowed statuses
   if (!isAllowedStatus(newStatus)) {
-    return NextResponse.json({ error: "Invalid or unsupported status" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid or unsupported status" },
+      { status: 400 }
+    );
   }
 
   try {
@@ -76,13 +79,13 @@ export async function PATCH(
       let attachments: any[] = [];
 
       if (newStatus === ALLOWED_STATUSES.ready) {
-  const pdfBytes = await generateReceiptPdf(updatedOrder);
-  attachments.push({
-    filename: `receipt-order-${updatedOrder.id}.pdf`,
-    content: Buffer.from(pdfBytes), // ✅ Convert Uint8Array → Buffer
-    contentType: "application/pdf",
-  });
-}
+        const pdfBytes = await generateReceiptPdf(updatedOrder);
+        attachments.push({
+          filename: `receipt-order-${updatedOrder.id}.pdf`,
+          content: Buffer.from(pdfBytes), // ✅ Convert Uint8Array → Buffer
+          contentType: "application/pdf",
+        });
+      }
 
       await sendEmail({
         to: customer.email,

@@ -1,7 +1,7 @@
 // app/api/admin/promocodes/[id]/route.ts
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { NextResponse } from "next/server";
 
 export async function PUT(

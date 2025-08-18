@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import bcrypt from "bcryptjs";
 
 type ProfileUpdateBody = {
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       name: user.customer.name,
       phone: user.customer.phone,
-      email:user.email,
+      email: user.email,
       address: user.customer.address,
       postcode: user.customer.postcode,
     });
@@ -81,8 +81,8 @@ export async function PUT(request: Request) {
         const newEmail = body.email.trim();
 
         updates.email = newEmail;
-  customerUpdates.email = newEmail;
-  orderUpdates.guestEmail = newEmail;
+        customerUpdates.email = newEmail;
+        orderUpdates.guestEmail = newEmail;
       }
       if (body.address !== undefined) {
         customerUpdates.address = body.address.trim();
@@ -105,9 +105,11 @@ export async function PUT(request: Request) {
           data: orderUpdates,
         }),
       ]);
-      
 
-      return NextResponse.json({ success: true, message: "Profile updated successfully" });
+      return NextResponse.json({
+        success: true,
+        message: "Profile updated successfully",
+      });
     }
 
     if (action === "password") {
@@ -115,7 +117,10 @@ export async function PUT(request: Request) {
 
       if (!currentPassword || !newPassword || !confirmPassword) {
         return NextResponse.json(
-          { error: "Current password, new password, and confirmation are required" },
+          {
+            error:
+              "Current password, new password, and confirmation are required",
+          },
           { status: 400 }
         );
       }
@@ -142,7 +147,10 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
-      const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
       if (!isPasswordValid) {
         return NextResponse.json(
           { error: "Current password is incorrect" },
@@ -157,7 +165,10 @@ export async function PUT(request: Request) {
         data: { password: hashedPassword },
       });
 
-      return NextResponse.json({ success: true, message: "Password updated successfully" });
+      return NextResponse.json({
+        success: true,
+        message: "Password updated successfully",
+      });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -1,7 +1,7 @@
 // app/api/admin/orders/payment-status/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request) {
@@ -34,8 +34,8 @@ export async function PATCH(request: Request) {
 
     const updatedOrder = await prisma.order.update({
       where: { id: Number(orderId) },
-       data:{ paymentStatus: "paid" },
-       include: {
+      data: { paymentStatus: "paid" },
+      include: {
         customer: { select: { name: true, email: true } },
         items: { include: { food: true } },
       },

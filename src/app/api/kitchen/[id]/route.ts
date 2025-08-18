@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { sendEmail } from "@/lib/notifications/email";
 import Pusher from "pusher";
 
 // Initialize Pusher for real-time
 const pusher = new Pusher({
-appId: process.env.PUSHER_APP_ID!, 
-key: process.env.NEXT_PUBLIC_PUSHER_KEY!, 
-secret: process.env.PUSHER_SECRET!, 
-cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!, 
-useTLS: true,
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+  useTLS: true,
 });
 
 // Valid status transitions for kitchen
 const VALID_STATUSES = ["accepted", "preparing", "ready"] as const;
-type OrderStatus = typeof VALID_STATUSES[number];
+type OrderStatus = (typeof VALID_STATUSES)[number];
 
 function isValidOrderStatus(status: string): status is OrderStatus {
   return VALID_STATUSES.includes(status as OrderStatus);
@@ -50,15 +50,21 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-const { status } = await request.json();
+  const { status } = await request.json();
 
-if (!status || typeof status !== "string") {
-  return NextResponse.json({ error: "Status is required and must be a string" }, { status: 400 });
-}
+  if (!status || typeof status !== "string") {
+    return NextResponse.json(
+      { error: "Status is required and must be a string" },
+      { status: 400 }
+    );
+  }
 
-if (!isValidOrderStatus(status)) {
-  return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
-}
+  if (!isValidOrderStatus(status)) {
+    return NextResponse.json(
+      { error: "Invalid status value" },
+      { status: 400 }
+    );
+  }
 
   try {
     const order = await prisma.order.findUnique({
@@ -75,7 +81,10 @@ if (!isValidOrderStatus(status)) {
 
     // 🔒 Security: Ensure order belongs to same restaurant
     if (order.restaurant.id !== session.user.restaurantId) {
-      return NextResponse.json({ error: "Unauthorized: Order not in your restaurant" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Unauthorized: Order not in your restaurant" },
+        { status: 403 }
+      );
     }
 
     // ⚠️ Optional: Validate status transition
@@ -89,7 +98,7 @@ if (!isValidOrderStatus(status)) {
     // Update order
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-       data:{
+      data: {
         status,
       },
       include: {
@@ -103,7 +112,9 @@ if (!isValidOrderStatus(status)) {
       await sendEmail({
         to: order.customer.email,
         subject: `Your Order #${orderId} is Ready!`,
-        text: `Hi ${order.customer.name}, your order is ready for ${order.deliveryType.toLowerCase()}!`,
+        text: `Hi ${
+          order.customer.name
+        }, your order is ready for ${order.deliveryType.toLowerCase()}!`,
         html: `
           <p>Hi <strong>${order.customer.name}</strong>,</p>
           <p>Your order #${orderId} is now <strong>ready</strong> for <strong>${order.deliveryType.toLowerCase()}</strong>.</p>
@@ -113,7 +124,11 @@ if (!isValidOrderStatus(status)) {
     }
 
     // 🚀 Trigger real-time update via Pusher
-    await pusher.trigger(`restaurant-${order.restaurant.id}`, "order-updated", updatedOrder);
+    await pusher.trigger(
+      `restaurant-${order.restaurant.id}`,
+      "order-updated",
+      updatedOrder
+    );
 
     return NextResponse.json(updatedOrder);
   } catch (error) {

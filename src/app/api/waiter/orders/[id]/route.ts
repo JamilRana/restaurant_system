@@ -1,7 +1,7 @@
 // app/api/waiter/orders/[id]/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import Pusher from "pusher";
 
@@ -14,7 +14,7 @@ const pusher = new Pusher({
 });
 
 const VALID_STATUSES = ["accepted", "preparing", "ready", "delivered"] as const;
-type OrderStatus = typeof VALID_STATUSES[number];
+type OrderStatus = (typeof VALID_STATUSES)[number];
 
 function isValidStatus(status: string): status is OrderStatus {
   return VALID_STATUSES.includes(status as OrderStatus);
@@ -38,7 +38,10 @@ export async function PATCH(
   const { status }: { status: string } = await request.json();
 
   if (!status || !isValidStatus(status)) {
-    return NextResponse.json({ error: "Invalid or missing status" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid or missing status" },
+      { status: 400 }
+    );
   }
 
   try {
@@ -72,7 +75,7 @@ export async function PATCH(
 
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-       data:{ status },
+      data: { status },
       include: {
         items: { include: { food: { include: { options: true } } } },
         table: { select: { number: true } },
@@ -81,7 +84,11 @@ export async function PATCH(
     });
 
     // 🚀 Real-time update
-    await pusher.trigger(`restaurant-${order.restaurant.id}`, "order-updated", updatedOrder);
+    await pusher.trigger(
+      `restaurant-${order.restaurant.id}`,
+      "order-updated",
+      updatedOrder
+    );
 
     return NextResponse.json(updatedOrder);
   } catch (error) {

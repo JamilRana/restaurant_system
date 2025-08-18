@@ -1,7 +1,7 @@
 // app/api/waiter/add-item/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import Pusher from "pusher";
@@ -24,7 +24,7 @@ const AddItemSchema = z.object({
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || !["WAITER", "ADMIN","KITCHEN"].includes(session.user.role)) {
+  if (!session || !["WAITER", "ADMIN", "KITCHEN"].includes(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -66,23 +66,26 @@ export async function POST(request: Request) {
     }
 
     if (foodOptionId) {
-      const option = food.options.find(opt => opt.id === foodOptionId);
+      const option = food.options.find((opt) => opt.id === foodOptionId);
       if (!option) {
-        return NextResponse.json({ error: "Invalid food option" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid food option" },
+          { status: 400 }
+        );
       }
     }
 
     const optionPrice = foodOptionId
-      ? food.options.find(o => o.id === foodOptionId)?.price || 0
+      ? food.options.find((o) => o.id === foodOptionId)?.price || 0
       : 0;
     const price = food.price + optionPrice;
 
     const newItem = await prisma.orderItem.create({
-       data:{
+      data: {
         orderId,
         foodId,
         quantity,
-        notes:notes || null,
+        notes: notes || null,
         price,
         foodOptionId: foodOptionId || null,
         addedAt: new Date(),
@@ -91,7 +94,7 @@ export async function POST(request: Request) {
 
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-       data:{
+      data: {
         totalAmount: { increment: price * quantity },
         finalAmount: { increment: price * quantity },
       },
@@ -102,7 +105,11 @@ export async function POST(request: Request) {
       },
     });
 
-    await pusher.trigger(`restaurant-${order.restaurant.id}`, "order-updated", updatedOrder);
+    await pusher.trigger(
+      `restaurant-${order.restaurant.id}`,
+      "order-updated",
+      updatedOrder
+    );
 
     return NextResponse.json(updatedOrder, { status: 201 });
   } catch (error) {
