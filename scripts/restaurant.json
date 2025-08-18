@@ -1,0 +1,124 @@
+{
+  "restaurant": {
+    "name": "Bella Italia",
+    "email": "admin@bellaitalia.com",
+    "address": "123 Pizza St, London",
+    "password": "123456",
+    "logoPath": "/images/logo.png",
+    "deliveryTime": "30-45 mins",
+    "collectionTime": "18:00-22:00"
+  },
+  "admin": {
+    "email": "admin@bellaitalia.com",
+    "password": "123456"
+  },
+  "categories": [
+    { "name": "Pizzas", "image": "/images/pizza.jpg" },
+    { "name": "Pasta", "image": "/images/pasta.jpg" },
+    { "name": "Salads", "image": "/images/salad.jpg" },
+    { "name": "Desserts", "image": "/images/dessert.jpg" },
+    { "name": "Beverages", "image": "/images/beverage.jpg" },
+    { "name": "Antipasti", "image": "/images/antipasto.jpg" },
+    { "name": "Seafood", "image": "/images/seafood.jpg" },
+    { "name": "Vegetarian", "image": "/images/vegetarian.jpg" },
+    { "name": "Vegan", "image": "/images/vegan.jpg" },
+    { "name": "Kids Menu", "image": "/images/kids.jpg" },
+    { "name": "Burgers", "image": "/images/burger.jpg" },
+    { "name": "Wraps", "image": "/images/wrap.jpg" },
+    { "name": "Soups", "image": "/images/soup.jpg" },
+    { "name": "Breakfast", "image": "/images/breakfast.jpg" },
+    { "name": "Sides", "image": "/images/side.jpg" }
+  ],
+  "kitchenStations": [
+    { "name": "Pizza Oven", "color": "#D32F2F" },
+    { "name": "Pasta Station", "color": "#1976D2" },
+    { "name": "Grill", "color": "#5D4037" },
+    { "name": "Dessert Prep", "color": "#7B1FA2" },
+    { "name": "Cold Kitchen", "color": "#00796B" },
+    { "name": "Fryer", "color": "#FF9800" },
+    { "name": "Beverage Bar", "color": "#C2185B" },
+    { "name": "Pickup Counter", "color": "#512DA8" },
+    { "name": "Sushi Bar", "color": "#607D8B" },
+    { "name": "Salad Prep", "color": "#388E3C" }
+  ],
+  "foods": [
+    { "name": "Margherita Pizza", "description": "Tomato, mozzarella, basil", "price": 12.99, "image": "/images/margherita.jpg", "prepTimeMinutes": 15, "category": "Pizzas", "station": "Pizza Oven" },
+    { "name": "Pepperoni Pizza", "description": "Pepperoni, cheese, tomato", "price": 15.99, "image": "/images/pepperoni.jpg", "prepTimeMinutes": 16, "category": "Pizzas", "station": "Pizza Oven" },
+    { "name": "Vegetarian Pizza", "description": "Mushrooms, peppers, olives", "price": 14.50, "image": "/images/veg-pizza.jpg", "prepTimeMinutes": 17, "category": "Pizzas", "station": "Pizza Oven" },
+    { "name": "BBQ Chicken Pizza", "description": "BBQ sauce, chicken, onion", "price": 16.99, "image": "/images/bbq-chicken.jpg", "prepTimeMinutes": 18, "category": "Pizzas", "station": "Pizza Oven" },
+    { "name": "Hawaiian Pizza", "description": "Ham, pineapple, cheese", "price": 15.50, "image": "/images/hawaiian.jpg", "prepTimeMinutes": 16, "category": "Pizzas", "station": "Pizza Oven" },
+    { "name": "Spaghetti Carbonara", "description": "Egg, pancetta, parmesan", "price": 13.50, "image": "/images/carbonara.jpg", "prepTimeMinutes": 14, "category": "Pasta", "station": "Pasta Station" },
+    { "name": "Penne Arrabbiata", "description": "Spicy tomato, garlic, chili", "price": 12.99, "image": "/images/arrabbiata.jpg", "prepTimeMinutes": 13, "category": "Pasta", "station": "Pasta Station" },
+    { "name": "Fettuccine Alfredo", "description": "Cream, parmesan, butter", "price": 14.00, "image": "/images/alfredo.jpg", "prepTimeMinutes": 12, "category": "Pasta", "station": "Pasta Station" },
+    { "name": "Caesar Salad", "description": "Romaine, croutons, dressing", "price": 8.99, "image": "/images/caesar.jpg", "prepTimeMinutes": 8, "category": "Salads", "station": "Cold Kitchen" },
+    { "name": "Greek Salad", "description": "Tomato, cucumber, feta", "price": 9.50, "image": "/images/greek-salad.jpg", "prepTimeMinutes": 7, "category": "Salads", "station": "Cold Kitchen" },
+    { "name": "Tiramisu", "description": "Coffee, mascarpone, ladyfingers", "price": 6.50, "image": "/images/tiramisu.jpg", "prepTimeMinutes": 5, "category": "Desserts", "station": "Dessert Prep" },
+    { "name": "Lemon Tart", "description": "Lemon filling, buttery crust", "price": 6.00, "image": "/images/lemon-tart.jpg", "prepTimeMinutes": 4, "category": "Desserts", "station": "Dessert Prep" },
+    { "name": "Coca-Cola", "description": "330ml can", "price": 2.00, "image": "/images/coke.jpg", "prepTimeMinutes": 1, "category": "Beverages", "station": "Beverage Bar" },
+    { "name": "Lemonade", "description": "Fresh lemon drink", "price": 3.50, "image": "/images/lemonade.jpg", "prepTimeMinutes": 2, "category": "Beverages", "station": "Beverage Bar" },
+    { "name": "Garlic Bread", "description": "Toasted with garlic butter", "price": 4.50, "image": "/images/garlic-bread.jpg", "prepTimeMinutes": 6, "category": "Sides", "station": "Fryer" }
+  ],
+  "staff": [
+    { "name": "Marco Rossi", "role": "CHEF", "salary": 3500, "salaryPeriod": "MONTHLY", "email": "marco@bellaitalia.com", "phone": "+447900123456" },
+    { "name": "Luca Bianchi", "role": "WAITER", "hourlyRate": 12.5, "salaryPeriod": "HOURLY", "email": "luca@bellaitalia.com", "phone": "+447900123457" },
+    { "name": "Giulia Romano", "role": "MANAGER", "salary": 4200, "salaryPeriod": "MONTHLY", "email": "giulia@bellaitalia.com", "phone": "+447900123458" },
+    { "name": "Alessia Moretti", "role": "CASHIER", "hourlyRate": 11.0, "salaryPeriod": "HOURLY", "email": "alessia@bellaitalia.com", "phone": "+447900123459" },
+    { "name": "Tommaso Ferrari", "role": "DELIVERY", "hourlyRate": 10.5, "salaryPeriod": "HOURLY", "email": "tommaso@bellaitalia.com", "phone": "+447900123460" },
+    { "name": "Sofia Ricci", "role": "CLEANER", "hourlyRate": 10.0, "salaryPeriod": "HOURLY", "email": "sofia@bellaitalia.com", "phone": "+447900123461" },
+    { "name": "Davide Greco", "role": "CHEF", "salary": 3400, "salaryPeriod": "MONTHLY", "email": "davide@bellaitalia.com", "phone": "+447900123462" },
+    { "name": "Elena Costa", "role": "WAITER", "hourlyRate": 12.0, "salaryPeriod": "HOURLY", "email": "elena@bellaitalia.com", "phone": "+447900123463" },
+    { "name": "Luigi De Luca", "role": "OTHER", "hourlyRate": 10.0, "salaryPeriod": "HOURLY", "email": "luigi@bellaitalia.com", "phone": "+447900123464" },
+    { "name": "Nina Bellini", "role": "KITCHEN", "hourlyRate": 10.5, "salaryPeriod": "HOURLY", "email": "nina@bellaitalia.com", "phone": "+447900123465" }
+  ],
+  "customers": [
+    { "name": "Anna Smith", "email": "anna@gmail.com", "phone": "+447800111111", "address": "123 Main St, London", "postcode": "SW1A 1AA" },
+    { "name": "David Jones", "email": "david@yahoo.com", "phone": "+447800111112", "address": "456 High St, London", "postcode": "SE1 9SG" },
+    { "name": "Lisa Brown", "email": "lisa@outlook.com", "phone": "+447800111113", "address": "789 Park Ave, London", "postcode": "W1A 0AX" },
+    { "name": "James Wilson", "email": "james@gmail.com", "phone": "+447800111114", "address": "321 King St, London", "postcode": "EC1A 1BB" },
+    { "name": "Sophie Taylor", "email": "sophie@proton.me", "phone": "+447800111115", "address": "654 Queen St, London", "postcode": "NW1 6XE" },
+    { "name": "Oliver Evans", "email": "oliver@icloud.com", "phone": "+447800111116", "address": "987 Castle Rd, London", "postcode": "E1 6AN" },
+    { "name": "Emily Clark", "email": "emily@gmail.com", "phone": "+447800111117", "address": "135 Hill St, London", "postcode": "N1 9AG" },
+    { "name": "Noah Patel", "email": "noah@outlook.com", "phone": "+447800111118", "address": "246 Brook Ln, London", "postcode": "KT1 1AA" }
+  ],
+  "deliveryZones": [
+    { "postcode": "SW1A 1AA", "deliveryFee": 3.99 },
+    { "postcode": "SE1 9SG", "deliveryFee": 4.50 },
+    { "postcode": "W1A 0AX", "deliveryFee": 4.99 },
+    { "postcode": "EC1A 1BB", "deliveryFee": 4.25 },
+    { "postcode": "NW1 6XE", "deliveryFee": 4.75 },
+    { "postcode": "E1 6AN", "deliveryFee": 4.00 },
+    { "postcode": "N1 9AG", "deliveryFee": 4.60 },
+    { "postcode": "KT1 1AA", "deliveryFee": 5.50 },
+    { "postcode": "SW1W 9QH", "deliveryFee": 4.30 },
+    { "postcode": "SE10 9NW", "deliveryFee": 5.00 }
+  ],
+  "promoCodes": [
+    { "code": "WELCOME10", "discountPercent": 10, "minOrderAmount": 20, "expiresAt": "2025-12-31T23:59:59Z", "active": true },
+    { "code": "SUMMER20", "discountPercent": 20, "minOrderAmount": 30, "expiresAt": "2024-08-31T23:59:59Z", "active": true },
+    { "code": "FREESHIP", "discountAmount": 3.99, "minOrderAmount": 40, "maxUses": 50, "currentUses": 12, "expiresAt": "2024-12-31T23:59:59Z", "active": true }
+  ],
+  "expenses": [
+    { "description": "Monthly rent", "category": "RENT", "amount": 2500, "date": "2024-04-01T00:00:00Z", "notes": "Lease payment" },
+    { "description": "Electricity bill", "category": "UTILITIES", "amount": 450, "date": "2024-04-05T00:00:00Z" },
+    { "description": "Chef Marco salary", "category": "SALARY", "amount": 3500, "date": "2024-04-01T00:00:00Z", "staffName": "Marco Rossi" },
+    { "description": "Marketing campaign", "category": "MARKETING", "amount": 300, "date": "2024-04-10T00:00:00Z" },
+    { "description": "Oven maintenance", "category": "MAINTENANCE", "amount": 180, "date": "2024-04-15T00:00:00Z" }
+  ],
+  "orders": [
+    { "customerId": "anna@gmail.com", "status": "delivered", "deliveryType": "DELIVERY", "totalAmount": 28.98, "finalAmount": 28.98, "items": [{ "food": "Margherita Pizza", "quantity": 2 }], "postcode": "SW1A 1AA", "address": "123 Main St, London", "orderNote": "Leave at door" },
+    { "customerId": "david@yahoo.com", "status": "delivered", "deliveryType": "PICKUP", "totalAmount": 15.99, "finalAmount": 14.39, "discountAmount": 1.6, "promoCode": "WELCOME10", "items": [{ "food": "Pepperoni Pizza", "quantity": 1 }], "timeSlot": "19:00-19:30", "orderNote": "" },
+    { "customerId": "lisa@outlook.com", "status": "preparing", "deliveryType": "DELIVERY", "totalAmount": 22.49, "finalAmount": 22.49, "items": [{ "food": "Spaghetti Carbonara", "quantity": 1 }, { "food": "Caesar Salad", "quantity": 1 }], "postcode": "W1A 0AX", "address": "789 Park Ave, London" },
+    { "customerId": "james@gmail.com", "status": "accepted", "deliveryType": "PICKUP", "totalAmount": 9.5, "finalAmount": 9.5, "items": [{ "food": "Greek Salad", "quantity": 1 }], "timeSlot": "20:00-20:30" },
+    { "customerId": "sophie@proton.me", "status": "placed", "deliveryType": "DELIVERY", "totalAmount": 19.49, "finalAmount": 19.49, "items": [{ "food": "Tiramisu", "quantity": 1 }, { "food": "Lemonade", "quantity": 1 }, { "food": "Garlic Bread", "quantity": 1 }], "postcode": "NW1 6XE", "address": "654 Queen St, London" },
+    { "customerId": "oliver@icloud.com", "status": "delivered", "deliveryType": "DELIVERY", "totalAmount": 44.97, "finalAmount": 40.47, "discountAmount": 4.5, "promoCode": "FREESHIP", "items": [{ "food": "BBQ Chicken Pizza", "quantity": 1 }, { "food": "Hawaiian Pizza", "quantity": 1 }, { "food": "Coca-Cola", "quantity": 3 }], "postcode": "E1 6AN", "address": "987 Castle Rd, London" },
+    { "customerId": "emily@gmail.com", "status": "ready", "deliveryType": "PICKUP", "totalAmount": 12.99, "finalAmount": 12.99, "items": [{ "food": "Margherita Pizza", "quantity": 1 }], "timeSlot": "18:30-19:00" },
+    { "customerId": "noah@outlook.com", "status": "delivered", "deliveryType": "DELIVERY", "totalAmount": 38.98, "finalAmount": 38.98, "items": [{ "food": "Vegetarian Pizza", "quantity": 2 }, { "food": "Lemon Tart", "quantity": 2 }], "postcode": "KT1 1AA", "address": "246 Brook Ln, London", "orderNote": "Call on arrival" },
+    { "customerId": "anna@gmail.com", "status": "delivered", "deliveryType": "DELIVERY", "totalAmount": 16.99, "finalAmount": 16.99, "items": [{ "food": "Pepperoni Pizza", "quantity": 1 }], "postcode": "SW1A 1AA", "address": "123 Main St, London" },
+    { "customerId": "david@yahoo.com", "status": "preparing", "deliveryType": "PICKUP", "totalAmount": 27.49, "finalAmount": 27.49, "items": [{ "food": "Penne Arrabbiata", "quantity": 1 }, { "food": "Fettuccine Alfredo", "quantity": 1 }], "timeSlot": "19:30-20:00" },
+    { "customerId": "lisa@outlook.com", "status": "delivered", "deliveryType": "DELIVERY", "totalAmount": 25.48, "finalAmount": 22.93, "discountAmount": 2.55, "promoCode": "WELCOME10", "items": [{ "food": "Caesar Salad", "quantity": 2 }, { "food": "Coca-Cola", "quantity": 2 }], "postcode": "W1A 0AX", "address": "789 Park Ave, London" },
+    { "customerId": "james@gmail.com", "status": "accepted", "deliveryType": "PICKUP", "totalAmount": 6.5, "finalAmount": 6.5, "items": [{ "food": "Tiramisu", "quantity": 1 }], "timeSlot": "21:00-21:30" },
+    { "customerId": "sophie@proton.me", "status": "placed", "deliveryType": "DELIVERY", "totalAmount": 35.97, "finalAmount": 35.97, "items": [{ "food": "Hawaiian Pizza", "quantity": 1 }, { "food": "BBQ Chicken Pizza", "quantity": 1 }, { "food": "Lemonade", "quantity": 1 }], "postcode": "NW1 6XE", "address": "654 Queen St, London" },
+    { "customerId": "oliver@icloud.com", "status": "delivered", "deliveryType": "DELIVERY", "totalAmount": 18.98, "finalAmount": 18.98, "items": [{ "food": "Garlic Bread", "quantity": 2 }, { "food": "Coca-Cola", "quantity": 2 }], "postcode": "E1 6AN", "address": "987 Castle Rd, London" },
+    { "customerId": "emily@gmail.com", "status": "delivered", "deliveryType": "PICKUP", "totalAmount": 29.98, "finalAmount": 29.98, "items": [{ "food": "Margherita Pizza", "quantity": 1 }, { "food": "Pepperoni Pizza", "quantity": 1 }], "timeSlot": "20:30-21:00" }
+  ]
+}
