@@ -1,16 +1,21 @@
 // app/api/admin/promocodes/[id]/route.ts
-import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { NextResponse } from "next/server";
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const id = parseInt(params.id);
+  const pramid = await params;
+  const id = parseInt(pramid.id);
+
   const data = await request.json();
 
   try {
@@ -30,13 +35,19 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     return NextResponse.json(updated);
   } catch (error: any) {
     if (error.code === "P2025") {
-      return NextResponse.json({ error: "Promo code not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Promo code not found" },
+        { status: 404 }
+      );
     }
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,7 +60,10 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error.code === "P2025") {
-      return NextResponse.json({ error: "Promo code not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Promo code not found" },
+        { status: 404 }
+      );
     }
     return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
