@@ -1,4 +1,4 @@
-// app/order-list/page.tsx
+// app/orders/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";

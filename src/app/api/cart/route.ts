@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       deliveryType: originalOrder.deliveryType,
       timeSlot: originalOrder.timeSlot,
       address: originalOrder.address,
-      zipcode: originalOrder.zipcode,
+      postcode: originalOrder.postcode,
       orderNote: originalOrder.orderNote,
     });
   } catch (error) {
