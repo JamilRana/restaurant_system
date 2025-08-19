@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { StaffDuePayment, SalaryPayment } from "@/types";
 import { RouteLoader } from "@/components/RouteLoader";
+import { useRouter } from "next/navigation";
 
 export default function SalaryPayments() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [payments, setPayments] = useState<SalaryPayment[]>([]);
   const [dueStaff, setDueStaff] = useState<StaffDuePayment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,11 +17,15 @@ export default function SalaryPayments() {
     notes: "",
   });
   const [successMessage, setSuccessMessage] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
-    if (!session) return;
+    if (status === "loading") return;
+    if (!session || session.user.role !== "ADMIN") {
+      router.push("/");
+    }
     fetchData();
-  }, [session]);
+  }, [session, status]);
 
   const fetchData = async () => {
     setLoading(true);

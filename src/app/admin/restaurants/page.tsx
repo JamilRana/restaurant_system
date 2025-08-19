@@ -76,7 +76,7 @@ export default function ManageRestaurants() {
     }
   };
 
-  if (status === "loading" || loading) {
+  if (loading) {
     <RouteLoader />;
   }
   if (!restaurant)
