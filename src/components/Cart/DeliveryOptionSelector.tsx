@@ -50,7 +50,7 @@ export default function DeliveryOptionSelector() {
         const origin =
           typeof window !== "undefined" ? window.location.origin : "";
         const res = await fetch(
-          `${origin}/api/postcodeSearch?query=${searchInput}&restaurantId=1`
+          `${origin}/api/postcode-search?query=${searchInput}&restaurantId=1`
         );
         const data = await res.json();
         setResults(Array.isArray(data.zones) ? data.zones : []);

@@ -1,4 +1,4 @@
-// app/api/postcodeSearch/route.ts
+// app/api/postcode-search/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     // ✅ Return as { zones: [...] }
     return NextResponse.json({ zones });
   } catch (error) {
-    console.error("GET /api/postcodeSearch", error);
+    console.error("GET /api/postcode-search", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
