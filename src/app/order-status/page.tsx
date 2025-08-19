@@ -1,8 +1,12 @@
+// app/order-status/page.tsx
 "use client";
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBasketStore } from "../store/basketStore";
+
+// ✅ Add this line at the top
+export const dynamic = "force-client";
 
 export default function OrderStatusPage() {
   const router = useRouter();
@@ -23,7 +27,6 @@ export default function OrderStatusPage() {
       return;
     }
     if (success === "true" && sessionId) {
-      // ✅ Confirm order with backend
       fetch("/api/orders/confirm-order-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
