@@ -1,62 +1,38 @@
 // app/order-status/page.tsx
-"use client";
-
-import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useBasketStore } from "../store/basketStore";
-
-// ✅ Add this line at the top
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
+import OrderStatusClient from "./OrderStatusClient"; // ✅ Normal import
+
 export default function OrderStatusPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const success = searchParams.get("success");
-  const sessionId = searchParams.get("session_id");
-  const clearBasket = useBasketStore((state) => state.clearBasket);
-
-  useEffect(() => {
-    if (success === "false") {
-      alert("Payment was canceled. You can try again.");
-      router.push("/checkout");
-      return;
-    }
-    if (success === null) {
-      alert("Payment was canceled. You can try again.");
-      router.push("/");
-      return;
-    }
-    if (success === "true" && sessionId) {
-      fetch("/api/orders/confirm-order-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) {
-            clearBasket();
-            router.push(`/orders?orderId=${data.orderId}`);
-          } else {
-            console.error("Failed to save order:", data.error);
-            alert(
-              "Payment succeeded, but order could not be saved. Contact support."
-            );
-          }
-        })
-        .catch((err) => {
-          console.error("Error confirming order:", err);
-          alert(
-            "An error occurred. Please contact support with your session ID."
-          );
-        });
-    }
-  }, [success, sessionId, clearBasket, router]);
-
   return (
-    <div className="p-6 text-center">
-      <h1 className="text-2xl font-bold mb-4">Order Status</h1>
-      <p>Processing your order...</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="max-w-md w-full text-center">
+        <div className="mb-6">
+          <img
+            src="/images/logo.png"
+            alt="Logo"
+            className="w-16 h-16 mx-auto mb-4"
+          />
+          <h1 className="text-2xl font-bold text-gray-800">Bella Italia</h1>
+        </div>
+
+        {/* ✅ Suspense with fallback */}
+        <Suspense
+          fallback={
+            <div className="py-8">
+              <div className="inline-block">
+                <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <h2 className="mt-4 text-lg text-gray-700">
+                Processing your order...
+              </h2>
+            </div>
+          }
+        >
+          <OrderStatusClient />
+        </Suspense>
+      </div>
     </div>
   );
 }
