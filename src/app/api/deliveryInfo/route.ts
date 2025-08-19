@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     // Query the database to find the matching delivery zone
     const deliveryZone = await prisma.deliveryZone.findFirst({
       where: {
-        zipcode: postcode, // Match the zipcode entered
+        postcode: postcode, // Match the postcode entered
       },
     });
 

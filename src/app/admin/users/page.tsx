@@ -11,7 +11,7 @@ type Customer = {
   name: string | null;
   phone: string | null;
   address: string | null;
-  zipcode: string | null;
+  postcode: string | null;
 };
 
 type User = {
@@ -113,7 +113,7 @@ export default function ManageUsers() {
       name: user.customer?.name ?? "",
       phone: user.customer?.phone ?? "",
       address: user.customer?.address ?? "",
-      postcode: user.customer?.zipcode ?? "",
+      postcode: user.customer?.postcode ?? "",
       password: "",
     });
     setIsModalOpen(true);

@@ -21,7 +21,7 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           <strong>Time Slot:</strong> {order.timeSlot}
         </p>
         <p>
-          <strong>Delivery:</strong> {order.address}, {order.zipcode}
+          <strong>Delivery:</strong> {order.address}, {order.postcode}
         </p>
         {order.orderNote && (
           <p>
@@ -34,7 +34,6 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             <li key={item.id} className="text-sm">
               {item.quantity}x {item.food.name} - £
               {(item.price * item.quantity).toFixed(2)}
-              
             </li>
           ))}
         </ul>

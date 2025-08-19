@@ -74,7 +74,7 @@ export default function OrderList() {
 
       // Optionally: pre-fill delivery or note
       useBasketStore.getState().setOrderNote(data.orderNote);
-      useBasketStore.getState().setPostcode(data.zipcode);
+      useBasketStore.getState().setPostcode(data.postcode);
       useBasketStore.getState().setAddress(data.address);
       useBasketStore
         .getState()

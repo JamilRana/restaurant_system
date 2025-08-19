@@ -10,7 +10,7 @@ interface User {
   name?: string | null;
   phone?: string | null;
   address?: string | null;
-  zipcode?: string | null;
+  postcode?: string | null;
   password?: string;
 }
 
@@ -21,46 +21,48 @@ interface UserModalProps {
 }
 
 function UserModal({ user, onClose, onSubmit }: UserModalProps) {
-const [formData, setFormData] = useState({
-  email: user?.email ?? "",
-  role: user?.role ?? "CUSTOMER",
-  name: user?.name ?? "",
-  phone: user?.phone ?? "",
-  address: user?.address ?? "",
-  zipcode: user?.zipcode ?? "",
-  password: "",
-});
+  const [formData, setFormData] = useState({
+    email: user?.email ?? "",
+    role: user?.role ?? "CUSTOMER",
+    name: user?.name ?? "",
+    phone: user?.phone ?? "",
+    address: user?.address ?? "",
+    postcode: user?.postcode ?? "",
+    password: "",
+  });
 
   // Sync form data when user prop changes
-useEffect(() => {
-  if (user) {
-    setFormData({
-      email: user.email ?? "",
-      role: user.role ?? "CUSTOMER",
-      name: user.name ?? "",
-      phone: user.phone ?? "",
-      address: user.address ?? "",
-      zipcode: user.zipcode ?? "",
-      password: user.password ?? "",
-    });
-  } else {
-    setFormData({
-      email: "",
-      role: "CUSTOMER",
-      name: "",
-      phone: "",
-      address: "",
-      zipcode: "",
-      password: "",
-    });
-  }
-}, [user]);
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        email: user.email ?? "",
+        role: user.role ?? "CUSTOMER",
+        name: user.name ?? "",
+        phone: user.phone ?? "",
+        address: user.address ?? "",
+        postcode: user.postcode ?? "",
+        password: user.password ?? "",
+      });
+    } else {
+      setFormData({
+        email: "",
+        role: "CUSTOMER",
+        name: "",
+        phone: "",
+        address: "",
+        postcode: "",
+        password: "",
+      });
+    }
+  }, [user]);
 
-useEffect(() => {
-  console.log("Form Data: ", formData);
-}, [formData]); // This logs the formData every time it changes
+  useEffect(() => {
+    console.log("Form Data: ", formData);
+  }, [formData]); // This logs the formData every time it changes
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -81,7 +83,9 @@ useEffect(() => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg w-full max-w-lg max-h-screen overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">{user?.id ? "Edit User" : "Create New User"}</h2>
+        <h2 className="text-xl font-bold mb-4">
+          {user?.id ? "Edit User" : "Create New User"}
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Email</label>
@@ -158,11 +162,11 @@ useEffect(() => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Zipcode</label>
+            <label className="block text-sm font-medium mb-1">postcode</label>
             <input
               type="text"
-              name="zipcode"
-              value={formData.zipcode}
+              name="postcode"
+              value={formData.postcode}
               onChange={handleChange}
               className="w-full border px-3 py-2 rounded"
             />
