@@ -3,7 +3,6 @@
 import { AuthView } from "@/app/Auth/page";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
-import { sendPasswordResetEmail } from "@/lib/mail";
 import { useRouter } from "next/navigation";
 
 interface Props {

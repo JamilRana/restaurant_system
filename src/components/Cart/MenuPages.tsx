@@ -6,6 +6,7 @@ import MenuSidebar from "./MenuSidebar";
 import Cart from "./Cart";
 import CategorySection from "./CategorySection";
 import { useBasketStore } from "@/app/store/basketStore";
+import { RouteLoader } from "../RouteLoader";
 
 const MenuPage = () => {
   const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
@@ -126,7 +127,9 @@ const MenuPage = () => {
     setExpanded(newState);
   };
 
-  if (loading) return <div className="p-6 text-center">Loading menu...</div>;
+  if (loading) {
+    <RouteLoader />;
+  }
   if (error) return <div className="p-6 text-red-500">{error}</div>;
 
   return (
