@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import SearchBar from "@/components/Admin/SearchBar";
 import DateRangePicker from "@/components/DateRangePicker";
 import Pagination from "@/components/Pagination";
+import { RouteLoader } from "@/components/RouteLoader";
 
 type Table = {
   id: number;
@@ -21,7 +22,7 @@ type Table = {
 type DateRange = { startDate: Date | null; endDate: Date | null };
 
 export default function ManageTables() {
-  const {  data:session, status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<{
     tables: Table[];
@@ -133,11 +134,11 @@ export default function ManageTables() {
     setPage(1);
   };
   // Get next logical status (cycle: AVAILABLE → OCCUPIED → CLEANING → AVAILABLE)
-const getNextStatus = (current: string) => {
-  const cycle = ["AVAILABLE", "OCCUPIED", "CLEANING", "AVAILABLE"];
-  const index = cycle.indexOf(current);
-  return cycle[index + 1] || cycle[0];
-};
+  const getNextStatus = (current: string) => {
+    const cycle = ["AVAILABLE", "OCCUPIED", "CLEANING", "AVAILABLE"];
+    const index = cycle.indexOf(current);
+    return cycle[index + 1] || cycle[0];
+  };
 
   const resetFilters = () => {
     setSearch("");
@@ -146,8 +147,9 @@ const getNextStatus = (current: string) => {
     setPage(1);
   };
 
-  if (status === "loading" || loading) return <p className="p-6">Loading...</p>;
-
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -162,7 +164,10 @@ const getNextStatus = (current: string) => {
 
       <div className="flex flex-col md:flex-row gap-4 items-center mb-6">
         <div className="md:w-1/2">
-          <SearchBar onSearch={setSearch} placeholder="Search by table number..." />
+          <SearchBar
+            onSearch={setSearch}
+            placeholder="Search by table number..."
+          />
         </div>
         <div>
           <select
@@ -187,57 +192,62 @@ const getNextStatus = (current: string) => {
       </div>
 
       {/* Tables Grid */}
-<div className="mt-6">
-  <div className="flex flex-wrap gap-3 justify-center">
-    {data?.tables.length === 0 ? (
-      <p className="text-gray-500 text-center w-full py-8">No tables found.</p>
-    ) : (
-      data?.tables.map((table) => {
-        // Status-based styling
-        const statusStyles = {
-          AVAILABLE: "bg-green-100 border-green-300 hover:bg-green-200",
-          OCCUPIED: "bg-red-100 border-red-300 hover:bg-red-200",
-          RESERVED: "bg-yellow-100 border-yellow-300 hover:bg-yellow-200",
-          CLEANING: "bg-gray-100 border-gray-300 hover:bg-gray-200",
-        };
+      <div className="mt-6">
+        <div className="flex flex-wrap gap-3 justify-center">
+          {data?.tables.length === 0 ? (
+            <p className="text-gray-500 text-center w-full py-8">
+              No tables found.
+            </p>
+          ) : (
+            data?.tables.map((table) => {
+              // Status-based styling
+              const statusStyles = {
+                AVAILABLE: "bg-green-100 border-green-300 hover:bg-green-200",
+                OCCUPIED: "bg-red-100 border-red-300 hover:bg-red-200",
+                RESERVED: "bg-yellow-100 border-yellow-300 hover:bg-yellow-200",
+                CLEANING: "bg-gray-100 border-gray-300 hover:bg-gray-200",
+              };
 
-        const statusColors = {
-          AVAILABLE: "text-green-800",
-          OCCUPIED: "text-red-800",
-          RESERVED: "text-yellow-800",
-          CLEANING: "text-gray-800",
-        };
+              const statusColors = {
+                AVAILABLE: "text-green-800",
+                OCCUPIED: "text-red-800",
+                RESERVED: "text-yellow-800",
+                CLEANING: "text-gray-800",
+              };
 
-        return (
-          <div
-            key={table.id}
-            className={`
+              return (
+                <div
+                  key={table.id}
+                  className={`
               w-48 p-4 border-4 rounded-lg shadow-md text-center
               transform transition-all duration-200 hover:scale-105 cursor-pointer
               ${statusStyles[table.status]}
             `}
-            title={`Table ${table.number} - ${table.status}`}
-          >
-            {/* Table Number */}
-            <div className="text-3xl font-bold mb-2 text-gray-800">
-              {table.number}
-            </div>
+                  title={`Table ${table.number} - ${table.status}`}
+                >
+                  {/* Table Number */}
+                  <div className="text-3xl font-bold mb-2 text-gray-800">
+                    {table.number}
+                  </div>
 
-            {/* Capacity */}
-            <div className="text-sm text-gray-600 mb-1">
-              <span className="font-medium">Seats:</span> {table.capacity}
-            </div>
+                  {/* Capacity */}
+                  <div className="text-sm text-gray-600 mb-1">
+                    <span className="font-medium">Seats:</span> {table.capacity}
+                  </div>
 
-            {/* Location */}
-            {table.location && (
-              <div className="text-xs text-gray-500 mb-2 truncate" title={table.location}>
-                {table.location}
-              </div>
-            )}
+                  {/* Location */}
+                  {table.location && (
+                    <div
+                      className="text-xs text-gray-500 mb-2 truncate"
+                      title={table.location}
+                    >
+                      {table.location}
+                    </div>
+                  )}
 
-            {/* Status Badge */}
-            <div
-              className={`
+                  {/* Status Badge */}
+                  <div
+                    className={`
                 text-xs font-bold px-2 py-1 rounded-full mb-3
                 ${statusColors[table.status]}
                 ${table.status === "AVAILABLE" && "bg-green-200"}
@@ -245,56 +255,59 @@ const getNextStatus = (current: string) => {
                 ${table.status === "RESERVED" && "bg-yellow-200"}
                 ${table.status === "CLEANING" && "bg-gray-200"}
               `}
-            >
-              {table.status.replace("_", " ")}
-            </div>
+                  >
+                    {table.status.replace("_", " ")}
+                  </div>
 
-            {/* Quick Actions */}
-            <div className="flex gap-2 justify-center">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openEdit(table);
-                }}
-                className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-white bg-opacity-50 rounded"
-                title="Edit Table"
-              >
-                ✏️
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStatusChange(table.id, getNextStatus(table.status));
-                }}
-                className="text-white text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 rounded"
-                title={`Set to ${getNextStatus(table.status)}`}
-              >
-                ➡️
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(table.id);
-                }}
-                className="text-white text-xs px-2 py-1 bg-red-500 hover:bg-red-600 rounded"
-                title="Delete Table"
-              >
-                🗑️
-              </button>
-            </div>
+                  {/* Quick Actions */}
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(table);
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-white bg-opacity-50 rounded"
+                      title="Edit Table"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStatusChange(
+                          table.id,
+                          getNextStatus(table.status)
+                        );
+                      }}
+                      className="text-white text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 rounded"
+                      title={`Set to ${getNextStatus(table.status)}`}
+                    >
+                      ➡️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(table.id);
+                      }}
+                      className="text-white text-xs px-2 py-1 bg-red-500 hover:bg-red-600 rounded"
+                      title="Delete Table"
+                    >
+                      🗑️
+                    </button>
+                  </div>
 
-            {/* Current Order ID (if any) */}
-            {table.currentOrderId && (
-              <div className="mt-2 text-xs text-blue-700 font-medium">
-                Order #{table.currentOrderId}
-              </div>
-            )}
-          </div>
-        );
-      })
-    )}
-  </div>
-</div>
+                  {/* Current Order ID (if any) */}
+                  {table.currentOrderId && (
+                    <div className="mt-2 text-xs text-blue-700 font-medium">
+                      Order #{table.currentOrderId}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
 
       {data?.totalPages && data.totalPages > 1 && (
         <Pagination
@@ -306,13 +319,21 @@ const getNextStatus = (current: string) => {
       )}
 
       {isModalOpen && (
-        <TableModal table={editing} onClose={closeModal} onSubmit={handleSubmit} />
+        <TableModal
+          table={editing}
+          onClose={closeModal}
+          onSubmit={handleSubmit}
+        />
       )}
     </div>
   );
 }
 
-function TableModal({ table, onClose, onSubmit }: {
+function TableModal({
+  table,
+  onClose,
+  onSubmit,
+}: {
   table: any;
   onClose: () => void;
   onSubmit: (formData: FormData) => Promise<void>;
@@ -341,7 +362,9 @@ function TableModal({ table, onClose, onSubmit }: {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">{table ? "Edit" : "Add"} Table</h2>
+        <h2 className="text-xl font-bold mb-4">
+          {table ? "Edit" : "Add"} Table
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label>Table Number *</label>

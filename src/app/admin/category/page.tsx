@@ -5,6 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import CategoryModal from "@/components/Admin/CategoryModal";
+import Loader from "@/components/Loader";
+import { LoadingProvider } from "@/context/LoadingContext";
+import { RouteLoader } from "@/components/RouteLoader";
 
 type Category = {
   id: number;
@@ -32,49 +35,49 @@ export default function ManageCategories() {
   const limit = 10;
 
   // Fetch categories from server
- const fetchCategories = useCallback(async () => {
-  setLoading(true);
-  try {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: "10",
-      search: search,
-    });
+  const fetchCategories = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "10",
+        search: search,
+      });
 
-    const res = await fetch(`/api/admin/category?${params.toString()}`, {
-      method: "GET",
-      headers: { "Cache-Control": "no-cache" },
-    });
+      const res = await fetch(`/api/admin/category?${params.toString()}`, {
+        method: "GET",
+        headers: { "Cache-Control": "no-cache" },
+      });
 
-    if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) throw new Error("Failed to fetch");
 
-    const result: ApiResponse = await res.json();
-    setData(result);
-  } catch (err) {
-    console.error("Fetch failed:", err);
-  } finally {
-    setLoading(false);
-  }
-}, [page, search]); // ✅ Correct dependencies
+      const result: ApiResponse = await res.json();
+      setData(result);
+    } catch (err) {
+      console.error("Fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search]); // ✅ Correct dependencies
 
   // Initial load and refetch on page/search change
-// Handle authentication redirect
-useEffect(() => {
-  if (status === "loading") return;
-  if (!session || session.user.role !== "ADMIN") {
-    router.push("/auth");
-  }
-}, [session, status, router]);
+  // Handle authentication redirect
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session || session.user.role !== "ADMIN") {
+      router.push("/auth");
+    }
+  }, [session, status, router]);
 
-// Debounced fetch on search or pagination
-useEffect(() => {
-  const timer = setTimeout(() => {
-    fetchCategories();
-  }, 500);
+  // Debounced fetch on search or pagination
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCategories();
+    }, 500);
 
-  return () => clearTimeout(timer);
-}, [search, page]); // Refetch when search or page changes
-  
+    return () => clearTimeout(timer);
+  }, [search, page]); // Refetch when search or page changes
+
   const openCreate = () => {
     setEditing(null);
     setIsModalOpen(true);
@@ -117,7 +120,7 @@ useEffect(() => {
   };
 
   if (status === "loading" || loading) {
-    return <p className="p-6 text-center">Loading...</p>;
+    <RouteLoader />;
   }
 
   return (
@@ -134,13 +137,15 @@ useEffect(() => {
 
       {/* Search */}
       <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-             placeholder="Search category name..."
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {loading && <div className="text-center py-2 text-gray-500">Searching...</div>}
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search category name..."
+        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      {loading && (
+        <div className="text-center py-2 text-gray-500">Searching...</div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -157,7 +162,9 @@ useEffect(() => {
             {data?.categories.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                  {search ? `No categories match "${search}".` : "No categories found."}
+                  {search
+                    ? `No categories match "${search}".`
+                    : "No categories found."}
                 </td>
               </tr>
             ) : (
@@ -224,11 +231,7 @@ useEffect(() => {
 
       {/* Modal */}
       {isModalOpen && (
-        <CategoryModal
-          category={editing}
-          onClose={close}
-          onSubmit={submit}
-        />
+        <CategoryModal category={editing} onClose={close} onSubmit={submit} />
       )}
     </div>
   );

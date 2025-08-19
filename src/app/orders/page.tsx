@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import OrderDetailModal from "@/components/Order/OrderDetailsModal";
 import { useBasketStore } from "../store/basketStore";
+import { RouteLoader } from "@/components/RouteLoader";
 
 export default function OrderList() {
   const { data: session, status } = useSession();
@@ -17,15 +18,17 @@ export default function OrderList() {
 
   const router = useRouter();
 
-  
-
   const fetchOrders = async () => {
     if (!session?.user?.email) return;
 
     try {
       // ✅ Use dynamic `page` and `statusFilter`
       const res = await fetch(
-        `/api/orderlist?role=${session.user.role}&id=${session.user.id}&limit=10&page=${page}${statusFilter ? `&status=${statusFilter}` : ""}`,
+        `/api/orderlist?role=${session.user.role}&id=${
+          session.user.id
+        }&limit=10&page=${page}${
+          statusFilter ? `&status=${statusFilter}` : ""
+        }`,
         {
           cache: "no-store", // Optional: avoid stale data
         }
@@ -53,40 +56,42 @@ export default function OrderList() {
     setPage(1); // ✅ Reset to page 1 when filter changes
   };
 
-// In your OrderDetailModal or OrderList
-const handleRepeatOrder = async (orderId: number) => {
-  try {
-    const res = await fetch("/api/cart", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId }),
-    });
+  // In your OrderDetailModal or OrderList
+  const handleRepeatOrder = async (orderId: number) => {
+    try {
+      const res = await fetch("/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error);
 
-    // ✅ Replace basket with repeated items
-    useBasketStore.getState().replaceBasket(data.items,data.id);
+      // ✅ Replace basket with repeated items
+      useBasketStore.getState().replaceBasket(data.items, data.id);
 
-    // Optionally: pre-fill delivery or note
-    useBasketStore.getState().setOrderNote(data.orderNote);
-    useBasketStore.getState().setPostcode(data.zipcode);
-    useBasketStore.getState().setAddress(data.address);
-    useBasketStore.getState().setDeliveryMode(
-      data.deliveryType === "DELIVERY" ? "delivery" : "collection"
-    );
+      // Optionally: pre-fill delivery or note
+      useBasketStore.getState().setOrderNote(data.orderNote);
+      useBasketStore.getState().setPostcode(data.zipcode);
+      useBasketStore.getState().setAddress(data.address);
+      useBasketStore
+        .getState()
+        .setDeliveryMode(
+          data.deliveryType === "DELIVERY" ? "delivery" : "collection"
+        );
 
-    // Redirect to checkout
-    router.push("/Checkout");
-  } catch (error) {
-    console.error("Failed to repeat order", error);
-    alert("Could not repeat order.");
-  }
-};
+      // Redirect to checkout
+      router.push("/Checkout");
+    } catch (error) {
+      console.error("Failed to repeat order", error);
+      alert("Could not repeat order.");
+    }
+  };
 
   if (status === "loading") {
-    return <div className="p-4">Loading...</div>;
+    <RouteLoader />;
   }
 
   if (status !== "authenticated") {
@@ -134,11 +139,11 @@ const handleRepeatOrder = async (orderId: number) => {
                 Details
               </button>
               <button
-    className="bg-green-500 text-white px-4 py-1 rounded"
-    onClick={() => handleRepeatOrder(order)}
-  >
-    Repeat Order
-  </button>
+                className="bg-green-500 text-white px-4 py-1 rounded"
+                onClick={() => handleRepeatOrder(order)}
+              >
+                Repeat Order
+              </button>
             </div>
           </div>
         ))

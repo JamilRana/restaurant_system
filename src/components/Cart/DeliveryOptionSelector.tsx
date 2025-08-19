@@ -5,7 +5,6 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useBasketStore } from "@/app/store/basketStore";
 import { useSession } from "next-auth/react";
-import { useDebounce } from "@/hooks/useDebounce";
 
 type PostcodeResult = {
   postcode: string;
@@ -21,75 +20,64 @@ export default function DeliveryOptionSelector() {
     postcode,
     address,
     deliveryFee,
-    orderNote,
     basketItems,
-    guestName,
-    guestEmail,
     setDeliveryMode,
     setPostcode,
     setAddress,
     setDeliveryFee,
-    setOrderNote,
-    setGuestInfo,
   } = useBasketStore();
 
-  const [searchResults, setSearchResults] = useState<PostcodeResult[]>([]);
-  const [showSearch, setShowSearch] = useState(false);
-  const addr = session?.user?.address ?? "";
-  const post = session?.user?.postcode ?? "";
+  const [searchInput, setSearchInput] = useState("");
+  const [results, setResults] = useState<PostcodeResult[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Load guest info into local state on mount
-  const [localName, setLocalName] = useState("");
-  const [localEmail, setLocalEmail] = useState("");
+  // Sync searchInput with postcode on load
+  useEffect(() => {
+    if (postcode) {
+      setSearchInput(postcode);
+    }
+  }, [postcode]);
 
   useEffect(() => {
-    setLocalName(guestName);
-    setLocalEmail(guestEmail);
-  }, [guestName, guestEmail]);
-
-  // Debounce the postcode
-  const debouncedPostcode = useDebounce(postcode, 500);
-
-  // Fetch postcode results
-  useEffect(() => {
-    if (deliveryMode === "delivery" && debouncedPostcode.length > 2) {
-      fetch(`/api/postcodesearch?query=${debouncedPostcode}`)
-        .then((res) => res.json())
-        .then((data: PostcodeResult[]) => {
-          setSearchResults(data);
-          const exact = data.find((z) => z.postcode === debouncedPostcode.toUpperCase());
-          if (exact) setDeliveryFee(exact.deliveryFee);
-        })
-        .catch(() => setSearchResults([]));
-    } else {
-      setSearchResults([]);
-    }
-  }, [debouncedPostcode, deliveryMode, setDeliveryFee]);
-
-  const selectPostcode = (result: PostcodeResult) => {
-    setPostcode(result.postcode);
-    setDeliveryFee(result.deliveryFee);
-    setSearchResults([]);
-    setShowSearch(false);
-  };
-
-   useEffect(() => {
-    if (!session && deliveryMode !== "collection") {
-      setDeliveryMode("collection");
-    }
-  }, [session, deliveryMode, setDeliveryMode]);
-
-
-    const handleCheckout = () => {
-    // If guest checkout, ensure name/email
-    if (!session && (!guestName.trim() || !guestEmail.trim())) {
-      alert("Please enter your name and email to continue");
+    if (deliveryMode !== "delivery" || !searchInput) {
+      setResults([]);
       return;
     }
 
-    // If valid, go to checkout
-    router.push("/checkout");
+    const fetchResults = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(
+          `/api/postcodeSearch?query=${searchInput}&restaurantId=1`
+        );
+        const data = await res.json();
+        setResults(Array.isArray(data.zones) ? data.zones : []);
+      } catch (err) {
+        console.error("Search failed:", err);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchResults();
+  }, [searchInput, deliveryMode]);
+
+  // Handle selection
+  const selectPostcode = (result: PostcodeResult) => {
+    setPostcode(result.postcode);
+    setDeliveryFee(result.deliveryFee);
+    setSearchInput(result.postcode);
+    setResults([]);
   };
+
+  // Pre-fill from session
+  useEffect(() => {
+    if (session?.user?.postcode && !postcode) {
+      setPostcode(session.user.postcode);
+      setSearchInput(session.user.postcode);
+    }
+  }, [session, postcode, setPostcode]);
 
   return (
     <div className="mt-4 space-y-4 text-xs">
@@ -120,49 +108,47 @@ export default function DeliveryOptionSelector() {
       </div>
 
       {/* Delivery Form */}
-      {deliveryMode === "delivery" && !session && (
-        <p className="text-red-500">Login required for delivery</p>
-      )}
-
-      {deliveryMode === "delivery" && session && (
+      {deliveryMode === "delivery" && (
         <div className="text-left mt-2">
           <h3 className="font-bold text-sm text-black mb-1">
             Postcode{" "}
             <span className="text-blue-700 underline">(Start typing)</span>
           </h3>
+
           <div className="relative">
             <input
               type="text"
-              value={post}
-              onChange={(e) => setPostcode(e.target.value)}
-              placeholder="SW1A 1AA"
-              className="w-full border px-2 py-1 rounded text-sm"
-              onFocus={() => {
-                if (postcode.length > 2 && searchResults.length > 0) {
-                  setShowSearch(true);
-                }
-              }}
-              onBlur={() => setTimeout(() => setShowSearch(false), 200)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="e.g. SW1A"
+              className="w-full border p-2 rounded text-sm"
             />
-            {showSearch && searchResults.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg max-h-40 overflow-y-auto">
-                {searchResults.map((res, i) => (
+
+            {/* Results Dropdown */}
+            {loading ? (
+              <div className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg p-2">
+                <p className="text-xs text-gray-500">Searching...</p>
+              </div>
+            ) : results.length > 0 ? (
+              <ul className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
+                {results.map((result, i) => (
                   <li
                     key={i}
-                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                    onClick={() => selectPostcode(res)}
+                    onClick={() => selectPostcode(result)}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
                   >
-                    {res.postcode} (£{res.deliveryFee} fee)
+                    <strong>{result.postcode}</strong> - £{result.deliveryFee}{" "}
+                    fee
                   </li>
                 ))}
               </ul>
-            )}
+            ) : null}
           </div>
 
           <label className="block mt-3 mb-1 text-xs">Address</label>
           <input
             type="text"
-            value={addr}
+            value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="123 Street, City..."
             className="w-full border px-2 py-1 rounded text-sm"
@@ -170,31 +156,10 @@ export default function DeliveryOptionSelector() {
         </div>
       )}
 
-      {/* Guest Checkout for Collection */}
-      {deliveryMode === "collection" && !session && (
-        <div className="mb-6 p-4 border rounded bg-yellow-50">
-          <h3 className="font-semibold">Checkout as Guest</h3>
-          <p className="text-sm text-gray-600 mb-2">You can create an account later to track your orders.</p>
-          
-          <div className="space-y-2 text-sm">
-            <input
-              type="text"
-              placeholder="Your Name"
-              defaultValue={guestName}
-              onChange={(e) => setGuestInfo(e.target.value, guestEmail)}
-              className="w-full border px-2 py-1 rounded"
-              aria-label="Your Name"
-            />
-            <input
-              type="email"
-              placeholder="Your Email"
-              defaultValue={guestEmail}
-              onChange={(e) => setGuestInfo(guestName, e.target.value)}
-              className="w-full border px-2 py-1 rounded"
-              aria-label="Your Email"
-            />
-          </div>
-        </div>
+      {deliveryMode === "collection" && (
+        <p className="text-center text-gray-600 text-sm">
+          Pickup available at restaurant.
+        </p>
       )}
 
       {/* Checkout Button */}
@@ -202,7 +167,7 @@ export default function DeliveryOptionSelector() {
         <p className="text-gray-500 text-center">Your basket is empty.</p>
       ) : (
         <button
-          onClick={handleCheckout}
+          onClick={() => router.push("/checkout")}
           className="w-full mt-4 bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2"
         >
           <span>➡️</span> Checkout

@@ -44,6 +44,14 @@ export async function POST(request: Request) {
     }
 
     const metadata = session.metadata || {};
+    const rawDeliveryType = metadata.deliveryType;
+    if (!["PICKUP", "DELIVERY", "DINEIN"].includes(rawDeliveryType)) {
+      console.error("Invalid deliveryType:", rawDeliveryType);
+      return NextResponse.json(
+        { error: "Invalid delivery type" },
+        { status: 400 }
+      );
+    }
     console.log("Stripe metadata:", metadata); // 🔍 Debug
 
     // Validate required metadata
@@ -71,7 +79,10 @@ export async function POST(request: Request) {
     }
 
     // Recalculate
-    const itemTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const itemTotal = items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
     const deliveryFee = parseFloat(metadata.deliveryFee || "0");
     const discountAmount = parseFloat(metadata.discountAmount || "0");
     const totalAmount = itemTotal + deliveryFee;
@@ -96,38 +107,40 @@ export async function POST(request: Request) {
         },
       });
       customerId = parseInt(metadata.customerId);
-if (isNaN(customerId)) {
-  return NextResponse.json({ error: "Invalid customerId" }, { status: 400 });
-}
+      if (isNaN(customerId)) {
+        return NextResponse.json(
+          { error: "Invalid customerId" },
+          { status: 400 }
+        );
+      }
     } else {
       // const customer = await prisma.customer.findUnique({
       //   where: { id: parseInt(data.customerId) },
       // });
-       const userWithCustomer = await prisma.user.findUnique({
-    where: { id: parseInt(metadata.customerId) },
-    include: { customer: true },
-  });
+      const userWithCustomer = await prisma.user.findUnique({
+        where: { id: parseInt(metadata.customerId) },
+        include: { customer: true },
+      });
 
-  if (!userWithCustomer || !userWithCustomer.customer) {
-    return NextResponse.json(
-      { error: "Customer profile not found. Please contact support." },
-      { status: 404 }
-    );
-  }
+      if (!userWithCustomer || !userWithCustomer.customer) {
+        return NextResponse.json(
+          { error: "Customer profile not found. Please contact support." },
+          { status: 404 }
+        );
+      }
 
-  const actualCustomerId = userWithCustomer.customer.id; // ✅ This is the real Customer ID
+      const actualCustomerId = userWithCustomer.customer.id; // ✅ This is the real Customer ID
 
-  // ✅ Update the Customer using the Customer ID
-  await prisma.customer.update({
-    where: { id: actualCustomerId },
-    data: {
-      totalSpent: { increment: finalAmount },
-      orderCount: { increment: 1 },
-    },
-  });
+      // ✅ Update the Customer using the Customer ID
+      await prisma.customer.update({
+        where: { id: actualCustomerId },
+        data: {
+          totalSpent: { increment: finalAmount },
+          orderCount: { increment: 1 },
+        },
+      });
 
-  customerId = actualCustomerId;
-
+      customerId = actualCustomerId;
     }
 
     // Create order
@@ -141,7 +154,7 @@ if (isNaN(customerId)) {
         paymentMethod: "card",
         status: "placed",
         timeSlot: metadata.timeSlot,
-        deliveryType: metadata.deliveryType,
+        deliveryType: rawDeliveryType as any,
         address: metadata.address,
         postcode: metadata.postcode,
         orderNote: metadata.orderNote || null,
@@ -149,13 +162,14 @@ if (isNaN(customerId)) {
         restaurantId: parseInt(metadata.restaurantId),
         isGuestOrder: metadata.isGuestOrder === "true",
         guestName: metadata.isGuestOrder === "true" ? metadata.guestName : null,
-        guestEmail: metadata.isGuestOrder === "true" ? metadata.guestEmail : null,
+        guestEmail:
+          metadata.isGuestOrder === "true" ? metadata.guestEmail : null,
         stripeSessionId: session.id,
-         stripePaymentIntent: session.payment_intent 
-      ? (typeof session.payment_intent === 'string' 
-          ? session.payment_intent 
-          : session.payment_intent.id)
-      : null,
+        stripePaymentIntent: session.payment_intent
+          ? typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent.id
+          : null,
         items: {
           create: items.map((item: any) => ({
             foodId: item.id,
@@ -171,10 +185,10 @@ if (isNaN(customerId)) {
   } catch (error: any) {
     console.error("❌ FULL ERROR in /api/confirm-order:", error);
     return NextResponse.json(
-      { 
-        error: "Failed to save order", 
+      {
+        error: "Failed to save order",
         details: error.message,
-        stack: error.stack 
+        stack: error.stack,
       },
       { status: 500 }
     );

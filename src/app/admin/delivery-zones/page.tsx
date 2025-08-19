@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import ZoneModal from "@/components/Admin/ZoneModal";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { RouteLoader } from "@/components/RouteLoader";
 
 type DeliveryZone = {
   id: number;
@@ -43,7 +44,9 @@ export default function ManageZones() {
   const fetchZones = async (pageNum: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/delivery-zones?page=${pageNum}&limit=${limit}`);
+      const res = await fetch(
+        `/api/admin/delivery-zones?page=${pageNum}&limit=${limit}`
+      );
       if (!res.ok) throw new Error("Failed to fetch");
 
       const result: ApiResponse = await res.json();
@@ -108,7 +111,9 @@ export default function ManageZones() {
     fetchZones(page);
   };
 
-  if (status === "loading" || loading) return <p className="p-6">Loading...</p>;
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -195,7 +200,11 @@ export default function ManageZones() {
       )}
 
       {isModalOpen && (
-        <ZoneModal zone={editingZone} onClose={closeModal} onSubmit={handleSubmit} />
+        <ZoneModal
+          zone={editingZone}
+          onClose={closeModal}
+          onSubmit={handleSubmit}
+        />
       )}
     </div>
   );

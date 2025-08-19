@@ -5,11 +5,19 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import StaffModal from "@/components/Admin/StaffModal";
+import { RouteLoader } from "@/components/RouteLoader";
 
 type Staff = {
   id: number;
   name: string;
-  role: "CHEF" | "WAITER" | "MANAGER" | "CASHIER" | "DELIVERY" | "CLEANER" | "OTHER";
+  role:
+    | "CHEF"
+    | "WAITER"
+    | "MANAGER"
+    | "CASHIER"
+    | "DELIVERY"
+    | "CLEANER"
+    | "OTHER";
   email: string | null;
   phone: string | null;
   hireDate: string;
@@ -18,7 +26,7 @@ type Staff = {
   salaryPeriod: "HOURLY" | "WEEKLY" | "MONTHLY" | null;
   active: boolean;
 };
- 
+
 type ApiResponse = {
   staff: Staff[];
   totalCount: number;
@@ -27,7 +35,7 @@ type ApiResponse = {
 };
 
 export default function StaffManagement() {
-  const {  data:session, status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +44,6 @@ export default function StaffManagement() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-
 
   useEffect(() => {
     if (status === "loading") return;
@@ -80,7 +87,17 @@ export default function StaffManagement() {
   const exportToCSV = () => {
     if (!data?.staff.length) return;
 
-    const headers = ["Name", "Role", "Email", "Phone", "Hire Date", "Salary", "Hourly Rate", "Period", "Active"];
+    const headers = [
+      "Name",
+      "Role",
+      "Email",
+      "Phone",
+      "Hire Date",
+      "Salary",
+      "Hourly Rate",
+      "Period",
+      "Active",
+    ];
     const rows = data.staff.map((s) => [
       s.name,
       s.role,
@@ -101,7 +118,10 @@ export default function StaffManagement() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `staff-export-${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute(
+      "download",
+      `staff-export-${new Date().toISOString().split("T")[0]}.csv`
+    );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -148,7 +168,9 @@ export default function StaffManagement() {
     fetchStaff();
   };
 
-  if (loading && !data) return <div className="p-6">Loading...</div>;
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
   if (error) return <div className="p-6 text-red-500">{error}</div>;
 
   return (
@@ -156,7 +178,10 @@ export default function StaffManagement() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold">Staff Management</h2>
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-          <a href="/admin/users" className="bg-blue-600 text-white px-4 py-2 rounded text-center">
+          <a
+            href="/admin/users"
+            className="bg-blue-600 text-white px-4 py-2 rounded text-center"
+          >
             Users
           </a>
           <button
@@ -220,9 +245,15 @@ export default function StaffManagement() {
                     <div>{s.email}</div>
                     <div>{s.phone}</div>
                   </td>
-                  <td className="px-4 py-3">{new Date(s.hireDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {s.salary ? `£${s.salary}/${s.salaryPeriod?.toLowerCase()}` : s.hourlyRate ? `£${s.hourlyRate}/hour` : "—"}
+                    {new Date(s.hireDate).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.salary
+                      ? `£${s.salary}/${s.salaryPeriod?.toLowerCase()}`
+                      : s.hourlyRate
+                      ? `£${s.hourlyRate}/hour`
+                      : "—"}
                   </td>
                   <td className="px-4 py-3">{s.active ? "✅" : "❌"}</td>
                   <td className="px-4 py-3 space-x-2">
@@ -247,28 +278,27 @@ export default function StaffManagement() {
       </div>
 
       {/* Pagination */}
-{data?.totalPages ? (
-  <div className="flex justify-between items-center mt-6">
-    <button
-      onClick={() => goToPage(page - 1)}
-      disabled={page === 1}
-      className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
-    >
-      Previous
-    </button>
-    <span>
-      Page {page} of {data.totalPages}
-    </span>
-    <button
-      onClick={() => goToPage(page + 1)}
-      disabled={page === data.totalPages}
-      className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
-    >
-      Next
-    </button>
-  </div>
-) : null}
-
+      {data?.totalPages ? (
+        <div className="flex justify-between items-center mt-6">
+          <button
+            onClick={() => goToPage(page - 1)}
+            disabled={page === 1}
+            className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span>
+            Page {page} of {data.totalPages}
+          </span>
+          <button
+            onClick={() => goToPage(page + 1)}
+            disabled={page === data.totalPages}
+            className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
 
       {/* Modal */}
       {isModalOpen && (

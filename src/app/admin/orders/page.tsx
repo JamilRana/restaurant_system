@@ -9,6 +9,7 @@ import Image from "next/image";
 import DateRangePicker from "@/components/DateRangePicker";
 import Pagination from "@/components/Pagination";
 import { OrderStatus } from "@prisma/client";
+import { RouteLoader } from "@/components/RouteLoader";
 
 // Status badge styles
 const statusStyles: Record<OrderStatus, string> = {
@@ -281,8 +282,8 @@ export default function AdminOrderList() {
     )
     .reduce((sum, o) => sum + o.totalAmount, 0);
 
-  if (status === "loading") {
-    return <div className="p-4 text-center">Loading...</div>;
+  if (status === "loading" || loading) {
+    <RouteLoader />;
   }
 
   if (!session || session.user.role !== "ADMIN") {

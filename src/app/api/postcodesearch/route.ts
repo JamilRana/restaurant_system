@@ -1,37 +1,48 @@
-// /app/api/postcodeSearch/route.ts
-import { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+// app/api/postcodeSearch/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
+export async function GET(request: NextRequest) {
+  const { searchParams } = request.nextUrl;
+  const query = searchParams.get("query");
+  const restaurantId = searchParams.get("restaurantId");
 
-export async function GET(req: NextRequest) {
-  const query = req.nextUrl.searchParams.get('query');
+  // Validate required params
+  if (!query || !restaurantId) {
+    return NextResponse.json(
+      { error: "Missing query or restaurantId" },
+      { status: 400 }
+    );
+  }
 
-  if (!query || query.length < 2) {
-    return new Response(JSON.stringify([]), { status: 200 });
+  const id = parseInt(restaurantId);
+  if (isNaN(id)) {
+    return NextResponse.json(
+      { error: "Invalid restaurantId" },
+      { status: 400 }
+    );
   }
 
   try {
     const zones = await prisma.deliveryZone.findMany({
       where: {
+        restaurantId: id,
         postcode: {
-          startsWith: query.toUpperCase().trim(),
+          startsWith: query.trim().toUpperCase(),
         },
       },
-      select: {
-        postcode: true,
-        deliveryFee: true,
-      },
+      orderBy: { postcode: "asc" },
+      // Optional: limit results
       take: 10,
     });
 
-    // Return [{ postcode: "SW1A 1AA", deliveryFee: 2.5 }, ...]
-    return new Response(JSON.stringify(zones), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    // ✅ Return as { zones: [...] }
+    return NextResponse.json({ zones });
   } catch (error) {
-    console.error("Postcode search error:", error);
-    return new Response(JSON.stringify([]), { status: 500 });
+    console.error("GET /api/postcodeSearch", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

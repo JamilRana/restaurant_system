@@ -8,6 +8,7 @@ import PromoCodeModal from "@/components/Admin/PromoCodeModal";
 import SearchBar from "@/components/Admin/SearchBar";
 import DateRangePicker from "@/components/DateRangePicker";
 import Pagination from "@/components/Pagination";
+import { RouteLoader } from "@/components/RouteLoader";
 
 type PromoCode = {
   id: number;
@@ -31,7 +32,7 @@ type ApiResponse = {
 };
 
 export default function AdminPromoCodes() {
-  const {  data:session, status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,8 +124,9 @@ export default function AdminPromoCodes() {
     fetchPromoCodes(page);
   };
 
-  if (status === "loading" || loading) return <p className="p-6">Loading...</p>;
-
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -146,7 +148,10 @@ export default function AdminPromoCodes() {
         </div>
         <div className="col-span-2">
           <DateRangePicker
-            value={{ startDate: dateFrom ? new Date(dateFrom) : null, endDate: dateTo ? new Date(dateTo) : null }}
+            value={{
+              startDate: dateFrom ? new Date(dateFrom) : null,
+              endDate: dateTo ? new Date(dateTo) : null,
+            }}
             onChange={({ startDate, endDate }) => {
               setDateFrom(startDate.toISOString().split("T")[0]);
               setDateTo(endDate.toISOString().split("T")[0]);
@@ -160,14 +165,30 @@ export default function AdminPromoCodes() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Issue Date</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Code</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Discount</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Min Order</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Uses</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Expires</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Active</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Actions</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Issue Date
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Code
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Discount
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Min Order
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Uses
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Expires
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Active
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -180,7 +201,9 @@ export default function AdminPromoCodes() {
             ) : (
               data?.promos.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm">{new Date(p.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-sm">
+                    {new Date(p.createdAt).toLocaleDateString()}
+                  </td>
                   <td className="px-4 py-3 font-mono text-sm">{p.code}</td>
                   <td className="px-4 py-3 text-sm">
                     {p.discountPercent ? `${p.discountPercent}%` : ""}
@@ -193,7 +216,9 @@ export default function AdminPromoCodes() {
                     {p.currentUses}/{p.maxUses ?? "∞"}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : "—"}
+                    {p.expiresAt
+                      ? new Date(p.expiresAt).toLocaleDateString()
+                      : "—"}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <span

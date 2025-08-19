@@ -1,14 +1,14 @@
 // prisma/seed.js
-const fs = require('fs');
-const path = require('path');
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcrypt');
+const fs = require("fs");
+const path = require("path");
+const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcrypt");
 
 const prisma = new PrismaClient();
 
 // Read JSON data
-const dataPath = path.join(__dirname, 'restaurant.json');
-const rawData = fs.readFileSync(dataPath, 'utf-8');
+const dataPath = path.join(__dirname, "restaurant.json");
+const rawData = fs.readFileSync(dataPath, "utf-8");
 const data = JSON.parse(rawData);
 
 async function hashPassword(password) {
@@ -16,7 +16,10 @@ async function hashPassword(password) {
 }
 
 async function main() {
-  console.log('🌱 Starting seed...');
+  console.log("🌱 Starting seed...");
+  const foodPriceMap = Object.fromEntries(
+    data.foods.map((f) => [f.name, f.price])
+  );
 
   // =============== CREATE RESTAURANT & ADMIN ===============
   const adminUser = await prisma.user.upsert({
@@ -25,7 +28,7 @@ async function main() {
     create: {
       email: data.admin.email,
       password: await hashPassword(data.admin.password),
-      role: 'ADMIN',
+      role: "ADMIN",
       restaurant: {
         create: {
           name: data.restaurant.name,
@@ -70,7 +73,9 @@ async function main() {
   // =============== CREATE FOODS ===============
   const foodMap = {};
   const stationMap = Object.fromEntries(
-    (await prisma.kitchenStation.findMany({ where: { restaurantId } })).map(s => [s.name, s.id])
+    (await prisma.kitchenStation.findMany({ where: { restaurantId } })).map(
+      (s) => [s.name, s.id]
+    )
   );
 
   for (const food of data.foods) {
@@ -93,7 +98,9 @@ async function main() {
       data: {
         ...staff,
         restaurantId,
-        hireDate: new Date(Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 365),
+        hireDate: new Date(
+          Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 365
+        ),
       },
     });
     staffMap[staff.name] = s.id;
@@ -106,8 +113,8 @@ async function main() {
     const user = await prisma.user.create({
       data: {
         email: customer.email,
-        password: await hashPassword('password'),
-        role: 'CUSTOMER',
+        password: await hashPassword("password"),
+        role: "CUSTOMER",
         customer: {
           create: {
             ...customer,
@@ -158,14 +165,20 @@ async function main() {
   // =============== CREATE ORDERS ===============
   for (const order of data.orders) {
     const customerId = customerMap[order.customerId];
-    const items = order.items.map(item => ({
-      foodId: foodMap[item.food],
-      quantity: item.quantity,
-      price: item.price || 0,
-    }));
 
-    // Fetch totalAmount from order or calculate
-    const totalAmount = order.totalAmount || items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const items = order.items.map((item) => {
+      const foodId = foodMap[item.food];
+      if (!foodId) throw new Error(`Food not found: ${item.food}`);
+      return {
+        foodId,
+        quantity: item.quantity,
+        price: foodPriceMap[item.food], // ✅ Correct price
+      };
+    });
+
+    const totalAmount =
+      order.totalAmount ||
+      items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
     await prisma.order.create({
       data: {
@@ -178,13 +191,11 @@ async function main() {
         orderNote: order.orderNote || null,
         postcode: order.postcode || null,
         address: order.address || null,
-        expectedDeliveryTime: '19:45',
         customerId,
         restaurantId,
         promoCode: order.promoCode || null,
-        items: {
-          create: items,
-        },
+        createdAt: randomDate(new Date("2024-04-01"), new Date()), // ✅ Random date
+        items: { create: items },
       },
     });
   }
@@ -192,11 +203,17 @@ async function main() {
 
   // =============== CREATE REVIEWS (for delivered orders) ===============
   const deliveredOrders = await prisma.order.findMany({
-    where: { status: 'delivered', restaurantId },
+    where: { status: "delivered", restaurantId },
     include: { items: true },
   });
 
-  const comments = ['Great food!', 'Fast delivery', 'Tasty and hot', 'Will order again', 'Excellent service!'];
+  const comments = [
+    "Great food!",
+    "Fast delivery",
+    "Tasty and hot",
+    "Will order again",
+    "Excellent service!",
+  ];
   for (const order of deliveredOrders) {
     await prisma.review.create({
       data: {
@@ -210,12 +227,12 @@ async function main() {
   }
   console.log(`✅ Created ${deliveredOrders.length} reviews`);
 
-  console.log('🎉 Seed completed!');
+  console.log("🎉 Seed completed!");
 }
 
 main()
-  .catch(err => {
-    console.error('❌ Seed failed:', err);
+  .catch((err) => {
+    console.error("❌ Seed failed:", err);
     process.exit(1);
   })
   .finally(async () => {

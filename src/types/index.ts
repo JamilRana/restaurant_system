@@ -1,8 +1,6 @@
 // types/index.ts
 import { ExpenseCategory, SalaryPeriod, StaffRole } from "@prisma/client";
 
-
-
 // --- Pagination ---
 export type Paginated<T> = {
   data: T[];
@@ -105,9 +103,15 @@ export type OrderWithItems = {
   timeSlot: string | null;
   address: string | null;
   postcode: string | null;
-  status: "placed" | "accepted" | "rejected" | "preparing" | "ready" | "delivered";
-  createdAt: string;
-  updatedAt: string;
+  status:
+    | "placed"
+    | "accepted"
+    | "rejected"
+    | "preparing"
+    | "ready"
+    | "delivered";
+  createdAt: Date;
+  updatedAt: Date;
   items: OrderItemWithFood[];
   restaurant: {
     id: number;
@@ -116,7 +120,7 @@ export type OrderWithItems = {
   };
 };
 
-export type OrderDetails = Omit<OrderWithItems, 'restaurant'>;
+export type OrderDetails = Omit<OrderWithItems, "restaurant">;
 
 // --- Customer ---
 export type Customer = {
@@ -157,7 +161,7 @@ export type Expense = {
   receiptPath: string | null;
   recurring: boolean;
   notes: string | null;
-  restaurantId: number|null;
+  restaurantId: number | null;
   staffId: string | null;
   staff: { id: number; name: string; role: StaffRole } | null;
   updatedAt: string;

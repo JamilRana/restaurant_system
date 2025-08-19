@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import FoodModal from "@/components/Admin/FoodModal";
+import { RouteLoader } from "@/components/RouteLoader";
 
 type FoodOption = {
   name: string;
@@ -70,9 +71,10 @@ export default function ManageFoods() {
   useEffect(() => {
     if (data) {
       setFiltered(
-        data.foods.filter((f) =>
-          f.name.toLowerCase().includes(search.toLowerCase()) ||
-          f.categoryName.toLowerCase().includes(search.toLowerCase())
+        data.foods.filter(
+          (f) =>
+            f.name.toLowerCase().includes(search.toLowerCase()) ||
+            f.categoryName.toLowerCase().includes(search.toLowerCase())
         )
       );
     }
@@ -119,8 +121,9 @@ export default function ManageFoods() {
     fetchFoods(page);
   };
 
-  if (status === "loading" || loading) return <p className="p-6">Loading...</p>;
-
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -175,21 +178,25 @@ export default function ManageFoods() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-  <div className="font-medium">{food.name}</div>
-  {food.options.length > 0 && (
-    <div className="text-sm text-gray-600 mt-1 space-y-1">
-      {food.options.map((opt, idx) => (
-        <div key={idx}>
-          {opt.name}
-          {opt.price > 0 && (
-            <span className="text-green-600 ml-1">+£{opt.price.toFixed(2)}</span>
-          )}
-        </div>
-      ))}
-    </div>
-  )}
-</td>
-                  <td className="px-4 py-3 text-gray-600">{food.categoryName}</td>
+                    <div className="font-medium">{food.name}</div>
+                    {food.options.length > 0 && (
+                      <div className="text-sm text-gray-600 mt-1 space-y-1">
+                        {food.options.map((opt, idx) => (
+                          <div key={idx}>
+                            {opt.name}
+                            {opt.price > 0 && (
+                              <span className="text-green-600 ml-1">
+                                +£{opt.price.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {food.categoryName}
+                  </td>
                   <td className="px-4 py-3">£{food.price.toFixed(2)}</td>
                   <td className="px-4 py-3">
                     <span
@@ -246,11 +253,7 @@ export default function ManageFoods() {
       )}
 
       {isModalOpen && (
-        <FoodModal
-          food={editing}
-          onClose={close}
-          onSubmit={submit}
-        />
+        <FoodModal food={editing} onClose={close} onSubmit={submit} />
       )}
     </div>
   );

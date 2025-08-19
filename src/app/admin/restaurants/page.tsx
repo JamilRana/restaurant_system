@@ -1,5 +1,6 @@
 // app/admin/restaurants/page.tsx
 "use client";
+import { RouteLoader } from "@/components/RouteLoader";
 import { useEffect, useState } from "react";
 
 type Restaurant = {
@@ -75,8 +76,11 @@ export default function ManageRestaurants() {
     }
   };
 
-  if (loading) return <p className="p-6">Loading...</p>;
-  if (!restaurant) return <p className="p-6 text-red-500">Restaurant not found</p>;
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
+  if (!restaurant)
+    return <p className="p-6 text-red-500">Restaurant not found</p>;
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -143,10 +147,16 @@ function RestaurantEditForm({
   onSubmit: (formData: FormData) => void;
   onCancel: () => void;
 }) {
-  const [deliveryTime, setDeliveryTime] = useState(restaurant.deliveryTime || "");
-  const [collectionTime, setCollectionTime] = useState(restaurant.collectionTime || "");
+  const [deliveryTime, setDeliveryTime] = useState(
+    restaurant.deliveryTime || ""
+  );
+  const [collectionTime, setCollectionTime] = useState(
+    restaurant.collectionTime || ""
+  );
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(restaurant.logoPath);
+  const [logoPreview, setLogoPreview] = useState<string | null>(
+    restaurant.logoPath
+  );
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -166,9 +176,14 @@ function RestaurantEditForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 border rounded-lg space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white p-6 border rounded-lg space-y-4"
+    >
       <div>
-        <label className="block text-sm font-medium mb-1">Delivery Time *</label>
+        <label className="block text-sm font-medium mb-1">
+          Delivery Time *
+        </label>
         <input
           type="text"
           value={deliveryTime}
@@ -179,7 +194,9 @@ function RestaurantEditForm({
         />
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">Collection Time *</label>
+        <label className="block text-sm font-medium mb-1">
+          Collection Time *
+        </label>
         <input
           type="text"
           value={collectionTime}
@@ -199,7 +216,11 @@ function RestaurantEditForm({
         />
         {logoPreview && (
           <div className="mt-2">
-            <img src={logoPreview} alt="Logo Preview" className="h-16 rounded" />
+            <img
+              src={logoPreview}
+              alt="Logo Preview"
+              className="h-16 rounded"
+            />
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -34,6 +34,7 @@
     "recharts": "^3.1.2",
     "sharp": "^0.34.3",
     "stripe": "^18.3.0",
+    "use-debounce": "^10.0.5",
     "zod": "^4.0.17",
     "zustand": "^4.5.7"
   },

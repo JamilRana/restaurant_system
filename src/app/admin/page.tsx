@@ -1,28 +1,50 @@
 // pages/dashboard/analytics.tsx
-"use client"
-import { useState } from 'react';
-import SalesCard from '@/components/Admin/Analytics/SalesCard';
-import DateRangePicker from '@/components/DateRangePicker';
-import ExpenseIncomeCard from '@/components/Admin/Analytics/ExpenseIncomeCard';
-import TotalCustomersCard from '@/components/Admin/Analytics/TotalCustomersCard';
-import StaffCard from '@/components/Admin/Analytics/StaffCard';
-import SalesTrendChart from '@/components/Admin/Analytics/SalesTrendChart';
-import PopularItemsChart from '@/components/Admin/Analytics/PopularItemsChart';
-import PeakTimesChart from '@/components/Admin/Analytics/PeakTimeChart';
-import OrderTypeBreakdown from '@/components/Admin/Analytics/OrderTypeBreakdown';
-import TopDeliveryLocations from '@/components/Admin/Analytics/TopDeliveryLocations';
-import PromoCodeUsage from '@/components/Admin/Analytics/PromoCodeUsage';
-import CategoryWiseItems from '@/components/Admin/Analytics/CategoryWiseItems';
+"use client";
+import { useEffect, useState } from "react";
+import SalesCard from "@/components/Admin/Analytics/SalesCard";
+import DateRangePicker from "@/components/DateRangePicker";
+import ExpenseIncomeCard from "@/components/Admin/Analytics/ExpenseIncomeCard";
+import TotalCustomersCard from "@/components/Admin/Analytics/TotalCustomersCard";
+import StaffCard from "@/components/Admin/Analytics/StaffCard";
+import SalesTrendChart from "@/components/Admin/Analytics/SalesTrendChart";
+import PopularItemsChart from "@/components/Admin/Analytics/PopularItemsChart";
+import PeakTimesChart from "@/components/Admin/Analytics/PeakTimeChart";
+import OrderTypeBreakdown from "@/components/Admin/Analytics/OrderTypeBreakdown";
+import TopDeliveryLocations from "@/components/Admin/Analytics/TopDeliveryLocations";
+import PromoCodeUsage from "@/components/Admin/Analytics/PromoCodeUsage";
+import CategoryWiseItems from "@/components/Admin/Analytics/CategoryWiseItems";
+import { RouteLoader } from "@/components/RouteLoader";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function AnalyticsDashboard() {
-  const [dateRange, setDateRange] = useState<{ startDate: Date; endDate: Date }>({
+  const [dateRange, setDateRange] = useState<{
+    startDate: Date;
+    endDate: Date;
+  }>({
     startDate: new Date(new Date().setDate(new Date().getDate() - 30)),
     endDate: new Date(),
   });
+  const [loading, setLoading] = useState(true);
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session || session.user.role !== "ADMIN") {
+      router.push("/Auth");
+    }
+  }, [session, status, router]);
+
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Analytics Dashboard</h1>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">
+        Analytics Dashboard
+      </h1>
 
       {/* Date Filter */}
       <div className="mb-6">

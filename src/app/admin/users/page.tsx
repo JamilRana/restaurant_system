@@ -2,6 +2,7 @@
 "use client";
 
 import UserModal from "@/components/Admin/UserModal";
+import { RouteLoader } from "@/components/RouteLoader";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -147,8 +148,9 @@ export default function ManageUsers() {
     }
   };
 
-  if (loading) return <p className="p-6">Loading users...</p>;
-
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">

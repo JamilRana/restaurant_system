@@ -35,6 +35,5 @@ export const adminLinks: Link[] = [
 
 export const defaultLinks: Link[] = [
   { id: 1, title: "Home", url: "/" },
-  { id: 2, title: "Menu", url: "/Menu" },
   { id: 3, title: "Contact Us", url: "/contact" },
 ];

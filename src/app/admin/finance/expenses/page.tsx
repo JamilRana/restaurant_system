@@ -8,14 +8,19 @@ import ExpenseModal from "@/components/Admin/Expenses/ExpensesModal";
 import dynamic from "next/dynamic";
 import { format } from "date-fns";
 import type { ExpenseFormValues, Paginated } from "@/types";
+import { RouteLoader } from "@/components/RouteLoader";
 
-const CSVExportButton = dynamic(
-  () => import("@/components/CSVExportButton"),
-  { ssr: false, loading: () => <span className="bg-green-600 text-white px-4 py-2 rounded">Export CSV</span> }
-);
+const CSVExportButton = dynamic(() => import("@/components/CSVExportButton"), {
+  ssr: false,
+  loading: () => (
+    <span className="bg-green-600 text-white px-4 py-2 rounded">
+      Export CSV
+    </span>
+  ),
+});
 
 type ApiResponse = {
-  data: ExpenseFormValues[];           // ✅ Fixed: array of expenses
+  data: ExpenseFormValues[]; // ✅ Fixed: array of expenses
   totalCount: number;
   totalPages: number;
   currentPage: number;
@@ -40,8 +45,11 @@ export default function ExpenseManagement() {
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState<ExpenseFormValues | null>(null);
-  const [staffList, setStaffList] = useState<{ id: number; name: string; role: string }[]>([]);
+  const [selectedExpense, setSelectedExpense] =
+    useState<ExpenseFormValues | null>(null);
+  const [staffList, setStaffList] = useState<
+    { id: number; name: string; role: string }[]
+  >([]);
 
   // Fetch expenses
   const fetchExpenses = useCallback(async () => {
@@ -59,9 +67,9 @@ export default function ExpenseManagement() {
       if (endDate) params.append("endDate", endDate);
 
       const url = `/api/admin/expenses?${params.toString()}`;
-      const res = await fetch(url, { 
-        method: "GET", 
-        headers: { 'Cache-Control': 'no-cache' } 
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { "Cache-Control": "no-cache" },
       });
 
       if (!res.ok) throw new Error("Failed to load expenses");
@@ -76,28 +84,28 @@ export default function ExpenseManagement() {
   }, [page, limit, search, category, startDate, endDate]);
 
   // Fetch staff list
-const fetchStaffList = useCallback(async () => {
-  if (!session?.user.restaurantId) return;
-  try {
-    const res = await fetch(`/api/admin/staff`);
-    if (!res.ok) throw new Error("Failed to fetch staff");
+  const fetchStaffList = useCallback(async () => {
+    if (!session?.user.restaurantId) return;
+    try {
+      const res = await fetch(`/api/admin/staff`);
+      if (!res.ok) throw new Error("Failed to fetch staff");
 
-    const data = await res.json();
+      const data = await res.json();
 
-    // ✅ Ensure it's an array
-    const staffArray = Array.isArray(data) ? data : data.staff;
+      // ✅ Ensure it's an array
+      const staffArray = Array.isArray(data) ? data : data.staff;
 
-    if (Array.isArray(staffArray)) {
-      setStaffList(staffArray);
-    } else {
-      console.error("Staff API did not return an array:", data);
-      setStaffList([]);
+      if (Array.isArray(staffArray)) {
+        setStaffList(staffArray);
+      } else {
+        console.error("Staff API did not return an array:", data);
+        setStaffList([]);
+      }
+    } catch (err) {
+      console.error("Failed to load staff", err);
+      setStaffList([]); // fallback
     }
-  } catch (err) {
-    console.error("Failed to load staff", err);
-    setStaffList([]); // fallback
-  }
-}, [session?.user.restaurantId]);
+  }, [session?.user.restaurantId]);
   // Initial load
   useEffect(() => {
     if (status === "loading") return;
@@ -119,12 +127,12 @@ const fetchStaffList = useCallback(async () => {
   useEffect(() => {
     if (search === "") fetchExpenses();
   }, [category, startDate, endDate, limit, page, fetchExpenses, search]);
-const openCreate=()=>{
-      setSelectedExpense(null);
+  const openCreate = () => {
+    setSelectedExpense(null);
     setIsModalOpen(true);
-}
+  };
   const openModal = (data: ExpenseFormValues) => {
-  setSelectedExpense(data);
+    setSelectedExpense(data);
     // setSelectedExpense(expense || null);
     setIsModalOpen(true);
   };
@@ -154,13 +162,13 @@ const openCreate=()=>{
   };
 
   // CSV Export
-  const csvData = (data?.data || []).map(e => ({
+  const csvData = (data?.data || []).map((e) => ({
     Description: e.description,
     Category: e.category,
     Amount: `£${e.amount.toFixed(2)}`,
     Date: e.date,
-    Staff: e.staff || 'N/A',
-    Notes: e.notes || 'N/A'
+    Staff: e.staff || "N/A",
+    Notes: e.notes || "N/A",
   }));
 
   const csvHeaders = [
@@ -169,15 +177,11 @@ const openCreate=()=>{
     { label: "Amount", key: "Amount" },
     { label: "Date", key: "Date" },
     { label: "Staff", key: "Staff" },
-    { label: "Notes", key: "Notes" }
+    { label: "Notes", key: "Notes" },
   ];
 
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+  if (status === "loading" || loading) {
+    <RouteLoader />;
   }
 
   return (
@@ -189,8 +193,18 @@ const openCreate=()=>{
           onClick={() => openCreate()}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+            />
           </svg>
           Add Expense
         </button>
@@ -200,7 +214,9 @@ const openCreate=()=>{
       <div className="bg-white p-6 rounded-lg shadow mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Search
+            </label>
             <input
               type="text"
               value={search}
@@ -211,21 +227,38 @@ const openCreate=()=>{
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All Categories</option>
-              {Object.values(['SALARY','GROCERIES','UTILITIES','RENT','MAINTENANCE','EQUIPMENT','MARKETING','INSURANCE','TRAVEL','OTHER']).map(cat => (
-                <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
+              {Object.values([
+                "SALARY",
+                "GROCERIES",
+                "UTILITIES",
+                "RENT",
+                "MAINTENANCE",
+                "EQUIPMENT",
+                "MARKETING",
+                "INSURANCE",
+                "TRAVEL",
+                "OTHER",
+              ]).map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat.replace("_", " ")}
+                </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              From Date
+            </label>
             <input
               type="date"
               value={startDate}
@@ -235,7 +268,9 @@ const openCreate=()=>{
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              To Date
+            </label>
             <input
               type="date"
               value={endDate}
@@ -261,22 +296,27 @@ const openCreate=()=>{
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-gray-500">Total Expenses</h3>
           <p className="text-2xl font-bold text-gray-900">
-            £{data?.totalExpenses.toFixed(2) || '0.00'}
+            £{data?.totalExpenses.toFixed(2) || "0.00"}
           </p>
         </div>
-        {data && Object.entries(data.categoryWiseTotals).map(([cat, amount]) => (
-          <div key={cat} className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">{cat.replace('_', ' ')}</h3>
-            <p className="text-2xl font-bold text-gray-900">£{amount.toFixed(2)}</p>
-          </div>
-        ))}
+        {data &&
+          Object.entries(data.categoryWiseTotals).map(([cat, amount]) => (
+            <div key={cat} className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">
+                {cat.replace("_", " ")}
+              </h3>
+              <p className="text-2xl font-bold text-gray-900">
+                £{amount.toFixed(2)}
+              </p>
+            </div>
+          ))}
       </div>
 
       {/* Actions */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center space-x-4">
           <label className="text-sm font-medium text-gray-700">
-            Show{' '}
+            Show{" "}
             <select
               value={limit}
               onChange={(e) => setLimit(parseInt(e.target.value))}
@@ -286,14 +326,14 @@ const openCreate=()=>{
               <option value="10">10</option>
               <option value="25">25</option>
               <option value="50">50</option>
-            </select>{' '}
+            </select>{" "}
             entries
           </label>
         </div>
         <CSVExportButton
           data={csvData}
           headers={csvHeaders}
-          filename={`expenses-${format(new Date(), 'yyyy-MM-dd')}.csv`}
+          filename={`expenses-${format(new Date(), "yyyy-MM-dd")}.csv`}
         />
       </div>
 
@@ -336,23 +376,37 @@ const openCreate=()=>{
             <tbody className="bg-white divide-y divide-gray-200">
               {data?.data.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  <td
+                    colSpan={7}
+                    className="px-6 py-8 text-center text-gray-500"
+                  >
                     No expenses found matching your filters.
                   </td>
                 </tr>
               ) : (
                 data?.data.map((e) => (
                   <tr key={e.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{e.description}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      {e.description}
+                    </td>
                     <td className="px-6 py-4 text-sm">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {e.category.replace('_', ' ')}
+                        {e.category.replace("_", " ")}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">£{e.amount.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{e.date}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{staffList.find(staff => staff.id === e.staffId)?.name || '—'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{e.notes || '—'}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      £{e.amount.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {e.date}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {staffList.find((staff) => staff.id === e.staffId)
+                        ?.name || "—"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {e.notes || "—"}
+                    </td>
                     <td className="px-6 py-4 text-sm font-medium">
                       <button
                         onClick={() => openModal(e)}

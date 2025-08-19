@@ -4,11 +4,12 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { RouteLoader } from "@/components/RouteLoader";
 
 type ProfileFormData = {
   name: string;
   phone: string;
-  email:string;
+  email: string;
   address: string;
   postcode: string;
 };
@@ -26,7 +27,7 @@ export default function ProfilePage() {
   const [profileData, setProfileData] = useState<ProfileFormData>({
     name: "",
     phone: "",
-    email:"",
+    email: "",
     address: "",
     postcode: "",
   });
@@ -60,7 +61,7 @@ export default function ProfilePage() {
       setProfileData({
         name: data.name || "",
         phone: data.phone || "",
-        email:data.email ||"",
+        email: data.email || "",
         address: data.address || "",
         postcode: data.postcode || "",
       });
@@ -104,12 +105,12 @@ export default function ProfilePage() {
       }
 
       await updateSession({
-      name: profileData.name,
-      email: profileData.email,
-      address:profileData.address,
-      phone:profileData.phone,
-      postcode:profileData.postcode,
-    });
+        name: profileData.name,
+        email: profileData.email,
+        address: profileData.address,
+        phone: profileData.phone,
+        postcode: profileData.postcode,
+      });
 
       setProfileSuccess("Profile updated successfully!");
     } catch (err: any) {
@@ -155,7 +156,9 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
 
   return (
     <div className="p-6 max-w-lg mx-auto">
@@ -165,8 +168,16 @@ export default function ProfilePage() {
       <section className="mb-10">
         <h2 className="text-xl font-semibold mb-4">Personal Information</h2>
 
-        {profileError && <div className="bg-red-100 text-red-700 p-3 mb-4 rounded">{profileError}</div>}
-        {profileSuccess && <div className="bg-green-100 text-green-700 p-3 mb-4 rounded">{profileSuccess}</div>}
+        {profileError && (
+          <div className="bg-red-100 text-red-700 p-3 mb-4 rounded">
+            {profileError}
+          </div>
+        )}
+        {profileSuccess && (
+          <div className="bg-green-100 text-green-700 p-3 mb-4 rounded">
+            {profileSuccess}
+          </div>
+        )}
 
         <form onSubmit={handleProfileSubmit} className="space-y-4">
           <div>
@@ -243,8 +254,16 @@ export default function ProfilePage() {
       <section>
         <h2 className="text-xl font-semibold mb-4">Change Password</h2>
 
-        {passwordError && <div className="bg-red-100 text-red-700 p-3 mb-4 rounded">{passwordError}</div>}
-        {passwordSuccess && <div className="bg-green-100 text-green-700 p-3 mb-4 rounded">{passwordSuccess}</div>}
+        {passwordError && (
+          <div className="bg-red-100 text-red-700 p-3 mb-4 rounded">
+            {passwordError}
+          </div>
+        )}
+        {passwordSuccess && (
+          <div className="bg-green-100 text-green-700 p-3 mb-4 rounded">
+            {passwordSuccess}
+          </div>
+        )}
 
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>

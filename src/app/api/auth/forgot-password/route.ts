@@ -7,7 +7,6 @@ import { sendEmail } from "@/lib/notifications/email";
 export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();
-    
 
     // Check if user exists
     const user = await prisma.user.findUnique({ where: { email } });
@@ -36,7 +35,11 @@ export async function POST(req: NextRequest) {
     const sub = "Password Reset Request";
 
     // Send email
-    await sendEmail(email, sub, resetLink);
+    await sendEmail({
+      to: email,
+      subject: sub,
+      text: resetLink,
+    });
 
     return NextResponse.json({ success: true, message: "Reset link sent!" });
   } catch (error) {

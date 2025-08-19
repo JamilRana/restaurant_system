@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { StaffDuePayment, SalaryPayment } from "@/types";
+import { RouteLoader } from "@/components/RouteLoader";
 
 export default function SalaryPayments() {
   const { data: session } = useSession();
@@ -70,8 +71,9 @@ export default function SalaryPayments() {
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
-
+  if (status === "loading" || loading) {
+    <RouteLoader />;
+  }
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Salary Payments</h1>
