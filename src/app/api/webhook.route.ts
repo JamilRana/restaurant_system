@@ -20,23 +20,34 @@ export async function POST(req: Request) {
   const sig = heads.get("Stripe-Signature");
 
   if (!sig) {
-    return NextResponse.json({ error: "Missing Stripe-Signature" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing Stripe-Signature" },
+      { status: 400 }
+    );
   }
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    event = stripe.webhooks.constructEvent(
+      body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
   } catch (err: any) {
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `Webhook Error: ${err.message}` },
+      { status: 400 }
+    );
   }
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
-    const { timeSlot, address, postcode, items, deliveryFee, customerId } = session.metadata || {};
+    const { timeSlot, address, postcode, items, deliveryFee, customerId } =
+      session.metadata || {};
 
     try {
       await prisma.order.create({
-         data:{
+        data: {
           totalAmount: session.amount_total ? session.amount_total / 100 : 0,
           paymentStatus: "paid",
           status: "placed",
@@ -60,7 +71,10 @@ export async function POST(req: Request) {
       console.log("✅ Order saved via webhook:", session.id);
     } catch (err: any) {
       console.error("Failed to save order:", err);
-      return NextResponse.json({ error: "DB save failed", details: err.message }, { status: 500 });
+      return NextResponse.json(
+        { error: "DB save failed", details: err.message },
+        { status: 500 }
+      );
     }
   }
 

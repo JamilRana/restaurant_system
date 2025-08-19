@@ -92,7 +92,7 @@ export async function POST(req: Request) {
           paymentMethod: "card",
           deliveryType: deliveryMode === "collection" ? "PICKUP" : "DELIVERY",
           address,
-          zipcode: postcode,
+          postcode: postcode,
           customerId: customer.id,
           restaurantId,
           stripeSessionId: sessionId,

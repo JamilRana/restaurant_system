@@ -15,9 +15,9 @@ const pusher = new Pusher({
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } // ✅ Now a Promise
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params; // ✅ Await it
+  const { id } = await params;
   const itemId = parseInt(id, 10);
   if (isNaN(itemId)) {
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
