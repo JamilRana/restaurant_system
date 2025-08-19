@@ -1,11 +1,10 @@
 // app/admin/foods/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import FoodModal from "@/components/Admin/FoodModal";
-import { RouteLoader } from "@/components/RouteLoader";
 
 type FoodOption = {
   name: string;
@@ -32,7 +31,17 @@ type ApiResponse = {
   currentPage: number;
 };
 
-export default function ManageFoods() {
+export default function Page() {
+  return (
+    <Suspense
+      fallback={<div className="p-6 text-center">Loading food items...</div>}
+    >
+      <ManageFoodsContent />
+    </Suspense>
+  );
+}
+
+function ManageFoodsContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -48,9 +57,9 @@ export default function ManageFoods() {
     if (status === "loading") return;
     if (!session || session.user.role !== "ADMIN") {
       router.push("/Auth");
-    } else {
-      fetchFoods(page);
+      return;
     }
+    fetchFoods(page);
   }, [session, status, router, page]);
 
   const fetchFoods = async (pageNum: number) => {
@@ -121,9 +130,6 @@ export default function ManageFoods() {
     fetchFoods(page);
   };
 
-  if (status === "loading" || loading) {
-    <RouteLoader />;
-  }
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -157,7 +163,13 @@ export default function ManageFoods() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {filtered.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                  Loading food items...
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   No food items found.

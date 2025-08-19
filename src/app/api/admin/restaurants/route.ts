@@ -3,16 +3,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-import fs from "fs";
-import path from "path";
-import { randomBytes } from "crypto";
+import { put, del } from "@vercel/blob";
+import { v4 as uuidv4 } from "uuid";
 
-// Ensure upload directory exists
-const UPLOAD_DIR = path.join(process.cwd(), "public", "logo");
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+// Valid image types
+const VALID_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export async function GET() {
   try {
@@ -80,36 +75,30 @@ export async function PUT(req: Request) {
     let logoPath = restaurant.logoPath;
 
     if (file) {
-      const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-      if (!validTypes.includes(file.type)) {
+      if (!VALID_TYPES.includes(file.type)) {
         return NextResponse.json(
           { error: "Invalid image type" },
           { status: 400 }
         );
       }
 
-      const bytes = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(bytes);
+      const buffer = Buffer.from(await file.arrayBuffer());
       const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const filename = `category_${randomBytes(8).toString("hex")}.${ext}`;
-      const filepath = path.join(UPLOAD_DIR, filename);
+      const filename = `logo_${uuidv4()}.${ext}`;
 
-      try {
-        await fs.promises.writeFile(filepath, uint8Array);
-        logoPath = `/logo/${filename}`;
-      } catch (err) {
-        console.error("File write error:", err);
-        return NextResponse.json(
-          { error: "Failed to save image" },
-          { status: 500 }
-        );
-      }
+      // Upload to Vercel Blob
+      const blob = await put(`logos/${filename}`, buffer, {
+        access: "public",
+      });
 
-      // Remove old logo
+      logoPath = blob.url;
+
+      // Delete old logo from Blob
       if (restaurant.logoPath) {
-        const oldPath = path.join(process.cwd(), "public", restaurant.logoPath);
-        if (fs.existsSync(oldPath)) {
-          await fs.promises.unlink(oldPath);
+        try {
+          await del(restaurant.logoPath);
+        } catch (err) {
+          console.warn("Failed to delete old logo from Blob", err);
         }
       }
     }
@@ -133,5 +122,5 @@ export async function PUT(req: Request) {
   }
 }
 
-// ✅ Required for file system access
+// Required for file system access (but we're not using fs anymore)
 export const runtime = "nodejs";

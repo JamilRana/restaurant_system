@@ -88,6 +88,17 @@ const MenuPage = () => {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [categories]);
 
+  const getScrollOffset = () => {
+    if (window.innerWidth < 768) return 100; // mobile
+    return 80; // desktop
+  };
+
+  const scrollToWithOffset = (el: HTMLElement) => {
+    const offset = getScrollOffset();
+    const y = el.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  };
+
   // Toggle category expand
   const toggleCategory = (id: number) => {
     const category = categories.find((cat: any) => cat.id === id);
@@ -95,19 +106,20 @@ const MenuPage = () => {
       window.location.hash = category.name.toLowerCase();
     }
 
+    // Toggle current expanded state
     setExpanded((prev) => ({
       ...prev,
-      [id]: true, // Always expand on click
+      [id]: !prev[id],
     }));
+
     setActiveCategoryId(id);
 
-    // ✅ Scroll after DOM update
+    // Scroll after state updates
     setTimeout(() => {
       const el = sectionRefs.current[id];
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else {
-        console.warn(`Section ${id} not rendered yet`);
+        //el.scrollIntoView({ behavior: "smooth", block: "start" });
+        scrollToWithOffset(el);
       }
     }, 100);
   };
@@ -135,7 +147,7 @@ const MenuPage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Mobile: Category Tabs */}
-      <div className="md:hidden bg-white border-b overflow-x-auto whitespace-nowrap sticky top-0 z-50 bg-white pt-4">
+      <div className="md:hidden top-0 bg-white border-b overflow-x-auto whitespace-nowrap sticky top-0 z-50 bg-white pt-4">
         <div className="flex py-2 px-2">
           {categories.map((cat) => (
             <button
@@ -152,7 +164,6 @@ const MenuPage = () => {
                   el &&
                   tabContainerRef.current
                 ) {
-                  // ✅ Auto-scroll active tab into view
                   el.scrollIntoView({ behavior: "smooth", inline: "center" });
                 }
               }}
@@ -178,7 +189,7 @@ const MenuPage = () => {
 
         {/* Menu */}
         <div className="md:col-span-2">
-          <div className="flex justify-between items-center mb-4 md:justify-end sticky top-0 z-50 bg-white pt-4">
+          <div className="flex justify-between items-center mb-4 md:justify-end ">
             <button
               onClick={toggleExpandAll}
               className="text-sm border px-3 py-1 rounded hover:bg-gray-50"

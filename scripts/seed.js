@@ -2,7 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 const { PrismaClient } = require("@prisma/client");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs"); // ✅ Use bcryptjs
 
 const prisma = new PrismaClient();
 
@@ -94,16 +94,18 @@ async function main() {
   // =============== CREATE STAFF ===============
   const staffMap = {};
   for (const staff of data.staff) {
-    const s = await prisma.staff.create({
+    const isHourly = staff.salaryPeriod === "HOURLY";
+    await prisma.staff.create({
       data: {
         ...staff,
+        salary: isHourly ? null : staff.salary || null,
+        hourlyRate: isHourly ? staff.hourlyRate : null,
         restaurantId,
         hireDate: new Date(
           Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 365
         ),
       },
     });
-    staffMap[staff.name] = s.id;
   }
   console.log(`✅ Created ${data.staff.length} staff`);
 

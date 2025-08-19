@@ -96,11 +96,25 @@ export default function ManageZones() {
     const method = isEdit ? "PUT" : "POST";
     const url = "/api/admin/delivery-zones";
 
-    const res = await fetch(url, { method, body: formData });
+    const body = JSON.stringify({
+      id: isEdit ? Number(formData.get("id")) : undefined,
+      postcode: formData.get("postcode"),
+      deliveryFee: Number(formData.get("deliveryFee")),
+    });
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || "Save failed");
     }
+
     fetchZones(page);
     return await res.json();
   };
@@ -145,7 +159,13 @@ export default function ManageZones() {
             </tr>
           </thead>
           <tbody>
-            {filteredZones.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
+                  Loading zones...
+                </td>
+              </tr>
+            ) : filteredZones.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
                   No zones found.

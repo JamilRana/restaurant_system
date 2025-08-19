@@ -43,8 +43,10 @@ export default function RegisterForm({ onSwitch }: Props) {
     const fetchResults = async () => {
       try {
         setLoading(true);
+        const origin =
+          typeof window !== "undefined" ? window.location.origin : "";
         const res = await fetch(
-          `/api/postcodeSearch?query=${searchInput}&restaurantId=1`
+          `${origin}/api/postcodeSearch?query=${searchInput}&restaurantId=1`
         );
         const data = await res.json();
         setResults(Array.isArray(data.zones) ? data.zones : []);

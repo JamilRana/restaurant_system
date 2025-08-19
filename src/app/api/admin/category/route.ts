@@ -4,21 +4,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import fs from "fs";
-import path from "path";
 import sharp from "sharp";
-import { randomBytes } from "crypto";
+import { put } from "@vercel/blob";
+import { v4 as uuidv4 } from "uuid";
 
-// Upload configuration
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "categories");
+// Upload config
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 const VALID_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const THUMBNAIL_SIZE = { width: 800, height: 600 };
-
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 
 // Schema
 const CategorySchema = z.object({
@@ -26,7 +19,6 @@ const CategorySchema = z.object({
   name: z.string().min(1, "Name is required").max(50),
 });
 
-// Response Type
 type ApiResponse = {
   categories: {
     id: number;
@@ -57,25 +49,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Build WHERE clause
     const where: any = { restaurantId };
     if (search) {
-      where.name = {
-        contains: search,
-        mode: "insensitive",
-      };
+      where.name = { contains: search, mode: "insensitive" };
     }
 
-    // Fetch paginated categories + total count
     const [categories, totalCount] = await Promise.all([
       prisma.category.findMany({
         where,
-        select: {
-          id: true,
-          name: true,
-          image: true,
-          createdAt: true,
-        },
+        select: { id: true, name: true, image: true, createdAt: true },
         orderBy: { name: "asc" },
         skip: offset,
         take: limit,
@@ -104,6 +86,7 @@ export async function GET(req: Request) {
     );
   }
 }
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -120,7 +103,6 @@ export async function POST(req: Request) {
     const name = formData.get("name");
     const file = formData.get("image") as File | null;
 
-    // Validate name
     const parsed = CategorySchema.safeParse({ name });
     if (!parsed.success) {
       return NextResponse.json(
@@ -142,22 +124,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check for duplicate within restaurant
     const existing = await prisma.category.findFirst({
       where: {
-        name: {
-          mode: "insensitive", // ← This enables case-insensitive matching
-          equals: categoryName,
-        },
+        name: { mode: "insensitive", equals: categoryName },
         restaurantId,
       },
     });
 
     if (existing) {
       return NextResponse.json(
-        {
-          error: "A category with this name already exists in your restaurant.",
-        },
+        { error: "A category with this name already exists." },
         { status: 409 }
       );
     }
@@ -180,23 +156,30 @@ export async function POST(req: Request) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-      const filename = `${categoryName.replace(
-        /\s+/g,
-        "_"
-      )}_${Date.now()}.${ext}`;
-      const filepath = path.join(UPLOAD_DIR, filename);
 
-      await sharp(buffer)
+      // Resize in memory
+      const resizedBuffer = await sharp(buffer)
         .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, {
           fit: "inside",
           withoutEnlargement: true,
         })
         .jpeg({ quality: 80 })
         .png({ compressionLevel: 6 })
-        .toFile(filepath);
+        .webp({ quality: 80 })
+        .toBuffer();
 
-      image = `/uploads/categories/${filename}`;
+      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+      const filename = `${categoryName.replace(
+        /\s+/g,
+        "_"
+      )}_${Date.now()}.${ext}`;
+
+      // Upload to Vercel Blob
+      const blob = await put(`categories/${filename}`, resizedBuffer, {
+        access: "public",
+      });
+
+      image = blob.url;
     }
 
     const category = await prisma.category.create({
@@ -243,10 +226,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Invalid name" }, { status: 400 });
     }
 
-    const category = await prisma.category.findUnique({
-      where: { id },
-    });
-
+    const category = await prisma.category.findUnique({ where: { id } });
     if (!category || category.restaurantId !== restaurantId) {
       return NextResponse.json(
         { error: "Category not found" },
@@ -254,13 +234,9 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Check for duplicate name (excluding self)
     const existing = await prisma.category.findFirst({
       where: {
-        name: {
-          mode: "insensitive", // ← This enables case-insensitive matching
-          equals: parsed.data.name,
-        },
+        name: { mode: "insensitive", equals: parsed.data.name },
         restaurantId,
         NOT: { id },
       },
@@ -268,7 +244,7 @@ export async function PUT(req: Request) {
 
     if (existing) {
       return NextResponse.json(
-        { error: "Another category has this name in your restaurant." },
+        { error: "Another category has this name." },
         { status: 409 }
       );
     }
@@ -276,34 +252,40 @@ export async function PUT(req: Request) {
     let image = category.image;
 
     if (file) {
-      // Delete old image
+      // Delete old blob if exists
       if (category.image) {
-        const oldPath = path.join(process.cwd(), "public", category.image);
-        if (fs.existsSync(oldPath)) {
-          await fs.promises.unlink(oldPath);
+        try {
+          await fetch(category.image, { method: "DELETE" });
+        } catch (err) {
+          console.warn("Failed to delete old image from Blob", err);
         }
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-      const filename = `cat_${randomBytes(12).toString("hex")}.${ext}`;
-      const filepath = path.join(UPLOAD_DIR, filename);
 
-      await sharp(buffer)
-        .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, { fit: "inside" })
+      const resizedBuffer = await sharp(buffer)
+        .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
         .jpeg({ quality: 80 })
         .png({ compressionLevel: 6 })
-        .toFile(filepath);
+        .webp({ quality: 80 })
+        .toBuffer();
 
-      image = `/uploads/categories/${filename}`;
+      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+      const filename = `cat_${Date.now()}_${uuidv4()}.${ext}`;
+
+      const blob = await put(`categories/${filename}`, resizedBuffer, {
+        access: "public",
+      });
+
+      image = blob.url;
     }
 
     const updated = await prisma.category.update({
       where: { id },
-      data: {
-        name: parsed.data.name,
-        image,
-      },
+      data: { name: parsed.data.name, image },
     });
 
     return NextResponse.json(updated);
@@ -335,10 +317,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
     }
 
-    const category = await prisma.category.findUnique({
-      where: { id },
-    });
-
+    const category = await prisma.category.findUnique({ where: { id } });
     if (!category || category.restaurantId !== restaurantId) {
       return NextResponse.json(
         { error: "Category not found" },
@@ -346,11 +325,12 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Delete image file
+    // Delete image from Blob
     if (category.image) {
-      const imagePath = path.join(process.cwd(), "public", category.image);
-      if (fs.existsSync(imagePath)) {
-        await fs.promises.unlink(imagePath);
+      try {
+        await fetch(category.image, { method: "DELETE" });
+      } catch (err) {
+        console.warn("Failed to delete image from Blob", err);
       }
     }
 

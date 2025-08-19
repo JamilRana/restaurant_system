@@ -4,19 +4,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
 import { foodSchema } from "@/lib/schemas/foodSchema";
-import fs from "fs";
-import path from "path";
 import sharp from "sharp";
-import { randomBytes } from "crypto";
+import { put, del } from "@vercel/blob";
+import { v4 as uuidv4 } from "uuid";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "foods");
+// Upload config
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 const VALID_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const THUMBNAIL_SIZE = { width: 800, height: 600 };
-
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 
 type ApiResponse = {
   foods: Array<{
@@ -47,6 +42,7 @@ export async function GET(req: Request) {
     if (!restaurantId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -166,17 +162,23 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Image too large" }, { status: 400 });
       }
 
-      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-      const filename = `${name.replace(/\W+/g, "_")}_${Date.now()}.${ext}`;
-      const filepath = path.join(UPLOAD_DIR, filename);
-
-      await sharp(buffer)
+      // Resize in memory
+      const resizedBuffer = await sharp(buffer)
         .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, { fit: "inside" })
         .jpeg({ quality: 80 })
         .png({ compressionLevel: 6 })
-        .toFile(filepath);
+        .webp({ quality: 80 })
+        .toBuffer();
 
-      image = `/uploads/foods/${filename}`;
+      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+      const filename = `${name.replace(/\W+/g, "_")}_${Date.now()}.${ext}`;
+
+      // Upload to Vercel Blob
+      const blob = await put(`foods/${filename}`, resizedBuffer, {
+        access: "public",
+      });
+
+      image = blob.url;
     }
 
     const food = await prisma.food.create({
@@ -278,23 +280,32 @@ export async function PUT(req: Request) {
     let image = food.image;
 
     if (file) {
+      // Delete old blob
       if (food.image) {
-        const oldPath = path.join(process.cwd(), "public", food.image);
-        if (fs.existsSync(oldPath)) await fs.promises.unlink(oldPath);
+        try {
+          await del(food.image);
+        } catch (err) {
+          console.warn("Failed to delete old image from Blob", err);
+        }
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-      const filename = `food_${randomBytes(12).toString("hex")}.${ext}`;
-      const filepath = path.join(UPLOAD_DIR, filename);
 
-      await sharp(buffer)
+      const resizedBuffer = await sharp(buffer)
         .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, { fit: "inside" })
         .jpeg({ quality: 80 })
         .png({ compressionLevel: 6 })
-        .toFile(filepath);
+        .webp({ quality: 80 })
+        .toBuffer();
 
-      image = `/uploads/foods/${filename}`;
+      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+      const filename = `food_${uuidv4()}.${ext}`;
+
+      const blob = await put(`foods/${filename}`, resizedBuffer, {
+        access: "public",
+      });
+
+      image = blob.url;
     }
 
     const updated = await prisma.food.update({
@@ -309,7 +320,7 @@ export async function PUT(req: Request) {
       },
     });
 
-    // Update options (simple: delete and recreate)
+    // Update options: delete and recreate
     await prisma.foodOption.deleteMany({ where: { foodId: id } });
 
     const options: Array<{ name: string; price: number }> = [];
@@ -361,10 +372,12 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // Delete image from Blob
     if (food.image) {
-      const imagePath = path.join(process.cwd(), "public", food.image);
-      if (fs.existsSync(imagePath)) {
-        await fs.promises.unlink(imagePath);
+      try {
+        await del(food.image);
+      } catch (err) {
+        console.warn("Failed to delete image from Blob", err);
       }
     }
 

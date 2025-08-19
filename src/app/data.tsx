@@ -30,7 +30,8 @@ export const adminLinks: Link[] = [
   { id: 6, title: "Delivery Fee", url: "/admin/delivery-zones" },
   { id: 7, title: "Time", url: "/admin/restaurants" },
   { id: 8, title: "Promocode", url: "/admin/promocodes" },
-  { id: 9, title: "Finance", url: "/admin/finance" },
+  { id: 9, title: "New Order", url: "/waiter/new" },
+  { id: 10, title: "Finance", url: "/admin/finance" },
 ];
 
 export const defaultLinks: Link[] = [

@@ -5,8 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import CategoryModal from "@/components/Admin/CategoryModal";
-import Loader from "@/components/Loader";
-import { LoadingProvider } from "@/context/LoadingContext";
 import { RouteLoader } from "@/components/RouteLoader";
 
 type Category = {
@@ -159,7 +157,13 @@ export default function ManageCategories() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {data?.categories.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
+                  Loading category...
+                </td>
+              </tr>
+            ) : data?.categories.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
                   {search

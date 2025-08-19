@@ -5,25 +5,30 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  console.log("Session:", session); // Should show full user
 
   if (!session) {
-    console.log(" No session, redirecting to /Auth");
-    return NextResponse.redirect(new URL("/Auth", process.env.NEXTAUTH_URL!));
+    return NextResponse.redirect("/login");
   }
 
-  console.log("✅ User role:", session.user.role);
+  let baseUrl = process.env.NEXTAUTH_URL;
 
-  const role = session.user.role;
-
-  let url = "/";
-  if (role === "ADMIN") {
-    url = "/admin/category";
-  } else if (role === "KITCHEN") {
-    url = "/kitchen";
-  } else {
-    url = "/"; // customer
+  // Fallback to Vercel or localhost
+  if (!baseUrl) {
+    if (process.env.VERCEL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else {
+      baseUrl = "http://localhost:3000";
+    }
   }
 
-  return NextResponse.redirect(new URL(url, process.env.NEXTAUTH_URL!));
+  // Ensure protocol
+  if (!baseUrl.startsWith("http")) {
+    baseUrl = `http://${baseUrl}`;
+  }
+
+  const pathname = session.user.role === "ADMIN" ? "/admin/category" : "/menu";
+
+  const redirectUrl = new URL(pathname, baseUrl);
+
+  return NextResponse.redirect(redirectUrl);
 }

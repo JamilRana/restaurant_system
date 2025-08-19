@@ -41,7 +41,7 @@ const Navbar = () => {
   }, [session]);
 
   return (
-    <div className="flex justify-between items-center px-6 py-4 bg-[#F2F2F2] shadow-sm">
+    <div className="flex justify-between sticky top-0 z-50 items-center px-6 py-4 bg-[#F2F2F2] shadow-sm">
       {/* LOGO */}
       <div className="flex items-center text-lg md:text-3xl font-bold">
         <Link href="/" key={rest.restaurant?.email} className="text-[#000]">
