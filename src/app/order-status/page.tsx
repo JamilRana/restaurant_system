@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useBasketStore } from "../store/basketStore";
 
 // ✅ Add this line at the top
-export const dynamic = "force-client";
+export const dynamic = "force-dynamic";
 
 export default function OrderStatusPage() {
   const router = useRouter();
