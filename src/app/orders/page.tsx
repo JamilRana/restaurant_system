@@ -1,7 +1,7 @@
 // app/orders/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import OrderDetailModal from "@/components/Order/OrderDetailsModal";
@@ -15,11 +15,10 @@ export default function OrderList() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [totalPages, setTotalPages] = useState(1);
-
   const router = useRouter();
 
-  // 🔁 Fetch orders when session, page, or filter changes
-  const fetchOrders = async () => {
+  // ✅ Wrap fetchOrders in useCallback so it doesn't change on every render
+  const fetchOrders = useCallback(async () => {
     if (!session?.user?.email) return;
 
     try {
@@ -42,27 +41,27 @@ export default function OrderList() {
     } catch (error) {
       console.error("Failed to load orders", error);
     }
-  };
+  }, [session, page, statusFilter]);
 
+  // ✅ Now safe to add fetchOrders as dependency
   useEffect(() => {
     if (status === "authenticated") {
       fetchOrders();
     }
-  }, [status, page, statusFilter]);
+  }, [status, fetchOrders]);
 
-  // 🛑 Redirect if not authenticated
+  // 🔁 Redirect if not authenticated
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/auth"); // ✅ Redirect only on client
+      router.push("/auth");
     }
   }, [status, router]);
 
-  // Show loader while checking auth
+  // Show loader while loading
   if (status === "loading") {
     return <RouteLoader />;
   }
 
-  // Return null while redirecting
   if (status === "unauthenticated") {
     return null;
   }
@@ -72,34 +71,37 @@ export default function OrderList() {
     setPage(1);
   };
 
-  const handleRepeatOrder = async (orderId: number) => {
-    try {
-      const res = await fetch("/api/cart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
-      });
+  const handleRepeatOrder = useCallback(
+    async (orderId: number) => {
+      try {
+        const res = await fetch("/api/cart", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId }),
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error);
 
-      useBasketStore.getState().replaceBasket(data.items, data.id);
-      useBasketStore.getState().setOrderNote(data.orderNote || "");
-      useBasketStore.getState().setPostcode(data.postcode || "");
-      useBasketStore.getState().setAddress(data.address || "");
-      useBasketStore
-        .getState()
-        .setDeliveryMode(
-          data.deliveryType === "DELIVERY" ? "delivery" : "collection"
-        );
+        useBasketStore.getState().replaceBasket(data.id, data.items);
+        useBasketStore.getState().setOrderNote(data.orderNote || "");
+        useBasketStore.getState().setPostcode(data.postcode || "");
+        useBasketStore.getState().setAddress(data.address || "");
+        useBasketStore
+          .getState()
+          .setDeliveryMode(
+            data.deliveryType === "DELIVERY" ? "delivery" : "collection"
+          );
 
-      router.push("/checkout");
-    } catch (error) {
-      console.error("Failed to repeat order", error);
-      alert("Could not repeat order. Please try again.");
-    }
-  };
+        router.push("/checkout");
+      } catch (error) {
+        console.error("Failed to repeat order", error);
+        alert("Could not repeat order. Please try again.");
+      }
+    },
+    [router]
+  );
 
   return (
     <div className="p-4">
@@ -142,7 +144,7 @@ export default function OrderList() {
               </button>
               <button
                 className="bg-green-500 text-white px-4 py-1 rounded"
-                onClick={() => handleRepeatOrder(order.id)} // ✅ Fixed
+                onClick={() => handleRepeatOrder(order.id)}
               >
                 Repeat Order
               </button>
