@@ -9,15 +9,17 @@ import { useBasketStore } from "../store/basketStore";
 import { RouteLoader } from "@/components/RouteLoader";
 
 export default function OrderList() {
-  const { data: session, status } = useSession();
-  const [orders, setOrders] = useState<any[]>([]);
+  const { data: session, status } = useSession(); // ✅ Hook at top
+  const router = useRouter(); // ✅ Hook at top
+
+  const [orders, setOrders] = useState<any[]>([]); // ✅ Hook at top
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
-  const [totalPages, setTotalPages] = useState(1);
-  const router = useRouter();
 
-  // ✅ Wrap fetchOrders in useCallback so it doesn't change on every render
+  const [totalPages, setTotalPages] = useState(1);
+
+  // ✅ useCallback: must be at top, before any returns
   const fetchOrders = useCallback(async () => {
     if (!session?.user?.email) return;
 
@@ -43,21 +45,20 @@ export default function OrderList() {
     }
   }, [session, page, statusFilter]);
 
-  // ✅ Now safe to add fetchOrders as dependency
+  // ✅ useEffects also at top
   useEffect(() => {
     if (status === "authenticated") {
       fetchOrders();
     }
   }, [status, fetchOrders]);
 
-  // 🔁 Redirect if not authenticated
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/auth");
     }
   }, [status, router]);
 
-  // Show loader while loading
+  // ✅ Now it's safe to do conditional rendering
   if (status === "loading") {
     return <RouteLoader />;
   }
@@ -84,7 +85,7 @@ export default function OrderList() {
 
         if (!res.ok) throw new Error(data.error);
 
-        useBasketStore.getState().replaceBasket(data.id, data.items);
+        useBasketStore.getState().replaceBasket(data.items, data.id);
         useBasketStore.getState().setOrderNote(data.orderNote || "");
         useBasketStore.getState().setPostcode(data.postcode || "");
         useBasketStore.getState().setAddress(data.address || "");
