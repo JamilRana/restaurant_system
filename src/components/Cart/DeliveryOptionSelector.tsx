@@ -20,24 +20,50 @@ export default function DeliveryOptionSelector() {
     postcode,
     address,
     deliveryFee,
+    orderNote,
     basketItems,
+    guestName,
+    guestEmail,
     setDeliveryMode,
     setPostcode,
     setAddress,
     setDeliveryFee,
+    setOrderNote,
+    setGuestInfo,
   } = useBasketStore();
 
   const [searchInput, setSearchInput] = useState("");
   const [results, setResults] = useState<PostcodeResult[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Sync searchInput with postcode on load
+  const [localName, setLocalName] = useState("");
+  const [localEmail, setLocalEmail] = useState("");
+
+  useEffect(() => {
+    if (!session) return;
+
+    if (session.user?.postcode && !postcode) {
+      setPostcode(session.user.postcode);
+      setSearchInput(session.user.postcode);
+    }
+
+    if (session.user?.address && !address) {
+      setAddress(session.user.address);
+    }
+  }, [session, postcode, address, setPostcode, setAddress, setSearchInput]);
+
   useEffect(() => {
     if (postcode) {
       setSearchInput(postcode);
     }
   }, [postcode]);
 
+  useEffect(() => {
+    setLocalName(guestName);
+    setLocalEmail(guestEmail);
+  }, [guestName, guestEmail]);
+
+  // Fetch postcode results
   useEffect(() => {
     if (deliveryMode !== "delivery" || !searchInput) {
       setResults([]);
@@ -65,7 +91,6 @@ export default function DeliveryOptionSelector() {
     fetchResults();
   }, [searchInput, deliveryMode]);
 
-  // Handle selection
   const selectPostcode = (result: PostcodeResult) => {
     setPostcode(result.postcode);
     setDeliveryFee(result.deliveryFee);
@@ -73,13 +98,29 @@ export default function DeliveryOptionSelector() {
     setResults([]);
   };
 
-  // Pre-fill from session
   useEffect(() => {
     if (session?.user?.postcode && !postcode) {
       setPostcode(session.user.postcode);
       setSearchInput(session.user.postcode);
     }
   }, [session, postcode, setPostcode]);
+
+  useEffect(() => {
+    if (!session && deliveryMode !== "collection") {
+      setDeliveryMode("collection");
+    }
+  }, [session, deliveryMode, setDeliveryMode]);
+
+  const handleCheckout = () => {
+    // If guest checkout, ensure name/email
+    if (!session && (!guestName.trim() || !guestEmail.trim())) {
+      alert("Please enter your name and email to continue");
+      return;
+    }
+
+    // If valid, go to checkout
+    router.push("/checkout");
+  };
 
   return (
     <div className="mt-4 space-y-4 text-xs">
@@ -110,58 +151,86 @@ export default function DeliveryOptionSelector() {
       </div>
 
       {/* Delivery Form */}
-      {deliveryMode === "delivery" && (
+      {deliveryMode === "delivery" && !session && (
+        <p className="text-red-500">Login required for delivery</p>
+      )}
+
+      {deliveryMode === "delivery" && session && (
         <div className="text-left mt-2">
           <h3 className="font-bold text-sm text-black mb-1">
             Postcode{" "}
             <span className="text-blue-700 underline">(Start typing)</span>
           </h3>
-
           <div className="relative">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="e.g. SW1A"
+                className="w-full border p-2 rounded text-sm"
+              />
+
+              {/* Results Dropdown */}
+              {loading ? (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg p-2">
+                  <p className="text-xs text-gray-500">Searching...</p>
+                </div>
+              ) : results.length > 0 ? (
+                <ul className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
+                  {results.map((result, i) => (
+                    <li
+                      key={i}
+                      onMouseDown={() => selectPostcode(result)}
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                    >
+                      <strong>{result.postcode}</strong> - £{result.deliveryFee}{" "}
+                      fee
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
+            <label className="block mt-3 mb-1 text-xs">Address</label>
             <input
               type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="e.g. SW1A"
-              className="w-full border p-2 rounded text-sm"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="123 Street, City..."
+              className="w-full border px-2 py-1 rounded text-sm"
             />
-
-            {/* Results Dropdown */}
-            {loading ? (
-              <div className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg p-2">
-                <p className="text-xs text-gray-500">Searching...</p>
-              </div>
-            ) : results.length > 0 ? (
-              <ul className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
-                {results.map((result, i) => (
-                  <li
-                    key={i}
-                    onClick={() => selectPostcode(result)}
-                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
-                  >
-                    <strong>{result.postcode}</strong> - £{result.deliveryFee}{" "}
-                    fee
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </div>
-
-          <label className="block mt-3 mb-1 text-xs">Address</label>
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="123 Street, City..."
-            className="w-full border px-2 py-1 rounded text-sm"
-          />
         </div>
       )}
 
-      {deliveryMode === "collection" && (
-        <p className="text-center text-gray-600 text-sm">
-          Pickup available at restaurant.
-        </p>
+      {/* Guest Checkout for Collection */}
+      {deliveryMode === "collection" && !session && (
+        <div className="mb-6 p-4 border rounded bg-yellow-50">
+          <h3 className="font-semibold">Checkout as Guest</h3>
+          <p className="text-sm text-gray-600 mb-2">
+            You can create an account later to track your orders.
+          </p>
+
+          <div className="space-y-2 text-sm">
+            <input
+              type="text"
+              placeholder="Your Name"
+              defaultValue={guestName}
+              onChange={(e) => setGuestInfo(e.target.value, guestEmail)}
+              className="w-full border px-2 py-1 rounded"
+              aria-label="Your Name"
+            />
+            <input
+              type="email"
+              placeholder="Your Email"
+              defaultValue={guestEmail}
+              onChange={(e) => setGuestInfo(guestName, e.target.value)}
+              className="w-full border px-2 py-1 rounded"
+              aria-label="Your Email"
+            />
+          </div>
+        </div>
       )}
 
       {/* Checkout Button */}
@@ -169,7 +238,7 @@ export default function DeliveryOptionSelector() {
         <p className="text-gray-500 text-center">Your basket is empty.</p>
       ) : (
         <button
-          onClick={() => router.push("/checkout")}
+          onClick={handleCheckout}
           className="w-full mt-4 bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2"
         >
           <span>➡️</span> Checkout

@@ -140,7 +140,7 @@ const MenuPage = () => {
   };
 
   if (loading) {
-    <RouteLoader />;
+    return <RouteLoader />;
   }
   if (error) return <div className="p-6 text-red-500">{error}</div>;
 

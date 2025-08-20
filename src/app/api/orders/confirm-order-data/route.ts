@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { Stripe } from "stripe";
 import { prisma } from "@/lib/prisma";
+import { sendEmail } from "@/lib/notifications/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-06-30.basil",
@@ -52,7 +53,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    console.log("Stripe metadata:", metadata); // 🔍 Debug
 
     // Validate required metadata
     if (!metadata.customerId || !metadata.restaurantId) {
@@ -180,6 +180,33 @@ export async function POST(request: Request) {
         },
       },
     });
+    if (metadata.isGuestOrder) {
+      try {
+        await sendEmail({
+          to: metadata.guestEmail,
+          subject: `Your Order #${order.id} is Confirmed!`,
+          text: `Hi ${metadata.guestName}, your order #${order.id} has been placed successfully.`,
+          html: `
+                <p>Hi <strong>${metadata.guestName}</strong>,</p>
+                <p>Thank you for your order! 🎉</p>
+                <p>Your order <strong>#${
+                  order.id
+                }</strong> is being prepared and will be ready for ${
+            order.deliveryType === "DELIVERY" ? "delivery" : "pickup"
+          }.</p>
+                <p><strong>Total:</strong> £${finalAmount.toFixed(2)}</p>
+                <p>We'll notify you when it's on its way!</p>
+                <p>Thanks,<br/>The Restaurant Team</p>
+              `,
+        });
+      } catch (emailError) {
+        console.error(
+          "Failed to send confirmation email to guest:",
+          emailError
+        );
+        // Don't throw — order is created, email is optional
+      }
+    }
 
     return NextResponse.json({ success: true, orderId: order.id });
   } catch (error: any) {

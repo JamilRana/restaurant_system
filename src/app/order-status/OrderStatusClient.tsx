@@ -1,18 +1,33 @@
 // app/order-status/OrderStatusClient.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBasketStore } from "../store/basketStore";
+import Loader from "@/components/Loader";
+import { RouteLoader } from "@/components/RouteLoader";
 
 export default function OrderStatusClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const success = searchParams.get("success");
   const sessionId = searchParams.get("session_id");
+  const paymentMethod = searchParams.get("paymentMethod");
+  const orderIdFromCash = searchParams.get("orderId");
+  const setGuestInfo = useBasketStore();
   const clearBasket = useBasketStore((state) => state.clearBasket);
+  const [loading, setLoading] = useState(true);
+  if (loading) {
+    return <RouteLoader />;
+  }
 
   useEffect(() => {
+    if (paymentMethod === "cash" && orderIdFromCash) {
+      clearBasket();
+      // Go directly to order details
+      router.push(`/orders?orderId=${orderIdFromCash}`);
+      return;
+    }
     if (success === "false") {
       alert("Payment was canceled. You can try again.");
       router.push("/checkout");
@@ -32,6 +47,11 @@ export default function OrderStatusClient() {
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
+            if (setGuestInfo) {
+              clearBasket();
+              alert("Order Confirmation Email send to you.");
+              router.push(`/`);
+            }
             clearBasket();
             router.push(`/orders?orderId=${data.orderId}`);
           } else {
@@ -48,6 +68,7 @@ export default function OrderStatusClient() {
           );
         });
     }
+    setLoading(false);
   }, [success, sessionId, clearBasket, router]);
 
   return null;

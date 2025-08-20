@@ -29,15 +29,24 @@ export async function POST(request: Request) {
   }
 
   const { orderId } = await request.json();
+  if (!orderId || !/^\d+$/.test(orderId.toString())) {
+    return NextResponse.json(
+      { error: "Valid Order ID is required" },
+      { status: 400 }
+    );
+  }
+
+  const orderNumber = parseInt(orderId, 10);
 
   if (!orderId) {
+    console.log(" fs", orderId, orderNumber);
     return NextResponse.json({ error: "Order ID required" }, { status: 400 });
   }
 
   try {
     // Find the original order with items and food
     const originalOrder = await prisma.order.findUnique({
-      where: { id: Number(orderId) }, // ✅ Ensure orderId is number
+      where: { id: orderNumber }, // ✅ Ensure orderId is number
       include: {
         items: {
           include: {

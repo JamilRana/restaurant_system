@@ -18,11 +18,11 @@ export default function OrderList() {
 
   const router = useRouter();
 
+  // 🔁 Fetch orders when session, page, or filter changes
   const fetchOrders = async () => {
     if (!session?.user?.email) return;
 
     try {
-      // ✅ Use dynamic `page` and `statusFilter`
       const res = await fetch(
         `/api/orderlist?role=${session.user.role}&id=${
           session.user.id
@@ -30,7 +30,7 @@ export default function OrderList() {
           statusFilter ? `&status=${statusFilter}` : ""
         }`,
         {
-          cache: "no-store", // Optional: avoid stale data
+          cache: "no-store",
         }
       );
 
@@ -44,19 +44,34 @@ export default function OrderList() {
     }
   };
 
-  // Refetch when session, page, or filter changes
   useEffect(() => {
     if (status === "authenticated") {
       fetchOrders();
     }
-  }, [status, page, statusFilter]); // ✅ Add dependencies
+  }, [status, page, statusFilter]);
+
+  // 🛑 Redirect if not authenticated
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth"); // ✅ Redirect only on client
+    }
+  }, [status, router]);
+
+  // Show loader while checking auth
+  if (status === "loading") {
+    return <RouteLoader />;
+  }
+
+  // Return null while redirecting
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setStatusFilter(e.target.value);
-    setPage(1); // ✅ Reset to page 1 when filter changes
+    setPage(1);
   };
 
-  // In your OrderDetailModal or OrderList
   const handleRepeatOrder = async (orderId: number) => {
     try {
       const res = await fetch("/api/cart", {
@@ -69,35 +84,22 @@ export default function OrderList() {
 
       if (!res.ok) throw new Error(data.error);
 
-      // ✅ Replace basket with repeated items
       useBasketStore.getState().replaceBasket(data.items, data.id);
-
-      // Optionally: pre-fill delivery or note
-      useBasketStore.getState().setOrderNote(data.orderNote);
-      useBasketStore.getState().setPostcode(data.postcode);
-      useBasketStore.getState().setAddress(data.address);
+      useBasketStore.getState().setOrderNote(data.orderNote || "");
+      useBasketStore.getState().setPostcode(data.postcode || "");
+      useBasketStore.getState().setAddress(data.address || "");
       useBasketStore
         .getState()
         .setDeliveryMode(
           data.deliveryType === "DELIVERY" ? "delivery" : "collection"
         );
 
-      // Redirect to checkout
-      router.push("/Checkout");
+      router.push("/checkout");
     } catch (error) {
       console.error("Failed to repeat order", error);
-      alert("Could not repeat order.");
+      alert("Could not repeat order. Please try again.");
     }
   };
-
-  if (status === "loading") {
-    <RouteLoader />;
-  }
-
-  if (status !== "authenticated") {
-    router.push("/Auth");
-    return null;
-  }
 
   return (
     <div className="p-4">
@@ -140,7 +142,7 @@ export default function OrderList() {
               </button>
               <button
                 className="bg-green-500 text-white px-4 py-1 rounded"
-                onClick={() => handleRepeatOrder(order)}
+                onClick={() => handleRepeatOrder(order.id)} // ✅ Fixed
               >
                 Repeat Order
               </button>

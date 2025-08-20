@@ -2,21 +2,12 @@
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
-import OrderStatusClient from "./OrderStatusClient"; // ✅ Normal import
+import OrderStatusClient from "./OrderStatusClient";
 
 export default function OrderStatusPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full text-center">
-        <div className="mb-6">
-          <img
-            src="/images/logo.png"
-            alt="Logo"
-            className="w-16 h-16 mx-auto mb-4"
-          />
-          <h1 className="text-2xl font-bold text-gray-800">Bella Italia</h1>
-        </div>
-
         {/* ✅ Suspense with fallback */}
         <Suspense
           fallback={

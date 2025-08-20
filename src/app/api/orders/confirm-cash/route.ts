@@ -1,11 +1,20 @@
-// app/api/orders/route.ts
+// app/api/orders/confirm-cash/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendEmail } from "@/lib/notifications/email";
 
 export async function POST(request: Request) {
   try {
-    console.log("api called");
     const data = await request.json();
+
+    const restaurantId = 1;
+    if (!restaurantId) {
+      return NextResponse.json(
+        { error: "No restaurant assigned" },
+        { status: 403 }
+      );
+    }
+
     // 1. Validate required fields
     if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
       return NextResponse.json(
@@ -13,12 +22,14 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
     if (!data.timeSlot) {
       return NextResponse.json(
         { error: "Time slot is required" },
         { status: 400 }
       );
     }
+
     if (data.deliveryType === "DELIVERY" && (!data.address || !data.postcode)) {
       return NextResponse.json(
         { error: "Address and postcode required for delivery" },
@@ -36,14 +47,14 @@ export async function POST(request: Request) {
 
     // 3. Apply promo code if provided
     let discountAmount = 0;
-    let appliedPromoCode = null;
+    let appliedPromoCode: string | null = null;
 
     if (data.promoCode) {
       const promo = await prisma.promoCode.findFirst({
         where: {
           code: data.promoCode.toUpperCase(),
           active: true,
-          restaurantId: data.restaurantId,
+          restaurantId: restaurantId,
           expiresAt: { gte: new Date() },
           minOrderAmount: { lte: totalAmount },
         },
@@ -64,19 +75,19 @@ export async function POST(request: Request) {
 
       discountAmount = Math.min(discountAmount, totalAmount);
       appliedPromoCode = promo.code;
-      
 
-    await prisma.promoCode.update({
-  where: { id: promo.id },
-  data: { currentUses: { increment: 1 } },
-});
+      await prisma.promoCode.update({
+        where: { id: promo.id },
+        data: { currentUses: { increment: 1 } },
+      });
     }
 
     const finalAmount = Math.max(totalAmount - discountAmount, 0);
 
     // 4. Resolve customer: guest or logged-in
     let customerId: number;
-if (data.isGuestOrder === true || data.isGuestOrder === "true") {
+
+    if (data.isGuestOrder === true || data.isGuestOrder === "true") {
       const customer = await prisma.customer.upsert({
         where: { email: data.guestEmail },
         update: {
@@ -91,85 +102,110 @@ if (data.isGuestOrder === true || data.isGuestOrder === "true") {
           orderCount: 1,
         },
       });
-      customerId = parseInt(data.customerId);
-if (isNaN(customerId)) {
-  return NextResponse.json({ error: "Invalid customerId" }, { status: 400 });
-}
+
+      customerId = customer.id;
     } else {
-      // const customer = await prisma.customer.findUnique({
-      //   where: { id: parseInt(data.customerId) },
-      // });
-       const userWithCustomer = await prisma.user.findUnique({
-    where: { id: parseInt(data.customerId) },
-    include: { customer: true },
-  });
+      const userWithCustomer = await prisma.user.findUnique({
+        where: { id: parseInt(data.customerId) },
+        include: { customer: true },
+      });
 
-  if (!userWithCustomer || !userWithCustomer.customer) {
-    return NextResponse.json(
-      { error: "Customer profile not found. Please contact support." },
-      { status: 404 }
-    );
-  }
+      if (!userWithCustomer || !userWithCustomer.customer) {
+        return NextResponse.json(
+          { error: "Customer profile not found." },
+          { status: 404 }
+        );
+      }
 
-  const actualCustomerId = userWithCustomer.customer.id; // ✅ This is the real Customer ID
+      const actualCustomerId = userWithCustomer.customer.id;
 
-  // ✅ Update the Customer using the Customer ID
-  await prisma.customer.update({
-    where: { id: actualCustomerId },
-    data: {
-      totalSpent: { increment: finalAmount },
-      orderCount: { increment: 1 },
-    },
-  });
+      await prisma.customer.update({
+        where: { id: actualCustomerId },
+        data: {
+          totalSpent: { increment: finalAmount },
+          orderCount: { increment: 1 },
+        },
+      });
 
-  customerId = actualCustomerId;
-
+      customerId = actualCustomerId;
     }
 
+    // 5. Create the order
+    const order = await prisma.order.create({
+      data: {
+        totalAmount,
+        finalAmount,
+        discountAmount,
+        promoCode: appliedPromoCode,
+        paymentStatus: data.paymentStatus || "pending",
+        paymentMethod: data.paymentMethod || "cash",
+        status: data.status || "placed",
+        timeSlot: data.timeSlot,
+        deliveryType: data.deliveryType,
+        address: data.address,
+        postcode: data.postcode,
+        restaurantId,
+        orderNote: data.orderNote || null,
+        expectedDeliveryTime: data.timeSlot
+          ? new Date(Date.now() + 30 * 60 * 1000).toISOString()
+          : null,
+        customerId,
+        isGuestOrder: data.isGuestOrder || false,
+        guestName: data.isGuestOrder ? data.guestName : null,
+        guestEmail: data.isGuestOrder ? data.guestEmail : null,
+        stripeSessionId: data.stripeSessionId || null,
+        stripePaymentIntent: data.stripePaymentIntent || null,
+        items: {
+          create: data.items.map((item: any) => ({
+            foodId: item.foodId,
+            quantity: item.quantity,
+            price: item.price,
+            foodOptionId: item.foodOptionId || null,
+          })),
+        },
+      },
+      include: {
+        items: { include: { food: true } },
+      },
+    });
 
-    // 5. Create the order — now with Stripe fields
+    // ✅ 6. Send confirmation email if guest
+    if (data.isGuestOrder) {
+      try {
+        await sendEmail({
+          to: data.guestEmail,
+          subject: `Your Order #${order.id} is Confirmed!`,
+          text: `Hi ${data.guestName}, your order #${order.id} has been placed successfully.`,
+          html: `
+            <p>Hi <strong>${data.guestName}</strong>,</p>
+            <p>Thank you for your order! 🎉</p>
+            <p>Your order <strong>#${
+              order.id
+            }</strong> is being prepared and will be ready for ${
+            order.deliveryType === "DELIVERY" ? "delivery" : "pickup"
+          }.</p>
+            <p><strong>Total:</strong> £${finalAmount.toFixed(2)}</p>
+            <p>We'll notify you when it's on its way!</p>
+            <p>Thanks,<br/>The Restaurant Team</p>
+          `,
+        });
+      } catch (emailError) {
+        console.error(
+          "Failed to send confirmation email to guest:",
+          emailError
+        );
+        // Don't throw — order is created, email is optional
+      }
+    }
 
-;
-const order = await prisma.order.create({
-  data: {
-    totalAmount,
-    finalAmount,
-    discountAmount,
-    promoCode: appliedPromoCode,
-    paymentStatus: data.paymentStatus || "pending",
-    paymentMethod: data.paymentMethod || "cash",
-    status: data.status || "placed",
-    timeSlot: data.timeSlot,
-    deliveryType: data.deliveryType,
-    address: data.address,
-    postcode: data.postcode,
-    orderNote: data.orderNote || null,
-    expectedDeliveryTime: data.timeSlot
-      ? new Date(Date.now() + 30 * 60 * 1000).toISOString()
-      : null,
-    customerId,
-    restaurantId: data.restaurantId,
-    isGuestOrder: data.isGuestOrder || false,
-    guestName: data.isGuestOrder ? data.guestName : null,
-    guestEmail: data.isGuestOrder ? data.guestEmail : null,
-    stripeSessionId: data.stripeSessionId || null,
-    stripePaymentIntent: data.stripePaymentIntent || null,
-    items: {
-      create: data.items.map((item: any) => ({
-        foodId: item.foodId,
-        quantity: item.quantity,
-        price: item.price,
-        foodOptionId: item.foodOptionId || null,
-      })),
-    },
-  },
-  include: {
-    items: { include: { food: true } },
-  },
-});
-
+    // ✅ 7. Return success response
     return NextResponse.json(
-      { success: true, orderId: order.id, finalAmount },
+      {
+        success: true,
+        orderId: order.id,
+        paymentMethod: order.paymentMethod,
+        isGuestOrder: order.isGuestOrder,
+      },
       { status: 201 }
     );
   } catch (error: any) {

@@ -17,7 +17,7 @@ export async function GET() {
     if (process.env.VERCEL) {
       baseUrl = `https://${process.env.VERCEL_URL}`;
     } else {
-      baseUrl = "http://localhost:3000";
+      baseUrl = "https://restaurant-system-z1yh.vercel.app";
     }
   }
 
@@ -26,7 +26,7 @@ export async function GET() {
     baseUrl = `http://${baseUrl}`;
   }
 
-  const pathname = session.user.role === "ADMIN" ? "/admin/category" : "/menu";
+  const pathname = session.user.role === "ADMIN" ? "/admin/" : "/";
 
   const redirectUrl = new URL(pathname, baseUrl);
 

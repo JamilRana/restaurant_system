@@ -63,7 +63,7 @@ export default function AuthPage() {
           <img
             src="/images/burger-meal.png"
             alt="Burger Meal"
-            className="w-full h-auto max-h-80 object-cover rounded-xl"
+            className="w-full h-auto max-h-50 object-cover rounded-xl"
           />
           <div className="absolute bottom-4 left-4 bg-white px-3 py-2 rounded-lg shadow text-center">
             <p className="text-2xl font-bold text-gray-800">3.4</p>
