@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+export const revalidate = 60;
 export async function GET() {
   try {
     const categories = await prisma.category.findMany({
@@ -14,7 +15,11 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(categories);
+    return Response.json(categories, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+      },
+    });
   } catch (error) {
     console.error("Error fetching menu:", error);
     return NextResponse.json(

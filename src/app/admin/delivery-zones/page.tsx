@@ -6,6 +6,7 @@ import ZoneModal from "@/components/Admin/ZoneModal";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { RouteLoader } from "@/components/RouteLoader";
+import ProtectedRoute from "@/components/Admin/ProtectedRoute";
 
 type DeliveryZone = {
   id: number;
@@ -130,102 +131,112 @@ export default function ManageZones() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Manage Delivery Zones</h1>
-        <button
-          onClick={openCreateModal}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          + Add Zone
-        </button>
-      </div>
-
-      <input
-        type="text"
-        placeholder="Search by postcode..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full border px-3 py-2 rounded mb-4"
-      />
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border rounded-lg">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2 text-left">Postcode</th>
-              <th className="px-4 py-2 text-left">Delivery Fee</th>
-              <th className="px-4 py-2 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
-                  Loading zones...
-                </td>
-              </tr>
-            ) : filteredZones.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
-                  No zones found.
-                </td>
-              </tr>
-            ) : (
-              filteredZones.map((zone) => (
-                <tr key={zone.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-2">{zone.postcode}</td>
-                  <td className="px-4 py-2">£{zone.deliveryFee.toFixed(2)}</td>
-                  <td className="px-4 py-2 space-x-2">
-                    <button
-                      onClick={() => openEditModal(zone)}
-                      className="text-blue-600 hover:underline text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(zone.id)}
-                      className="text-red-600 hover:underline text-sm"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {data?.totalPages && data.totalPages > 1 && (
-        <div className="flex justify-between items-center mt-6">
+    <ProtectedRoute requiredRole="ADMIN">
+      <div className="p-6 max-w-3xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Manage Delivery Zones</h1>
           <button
-            onClick={() => goToPage(page - 1)}
-            disabled={page === 1}
-            className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+            onClick={openCreateModal}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
-            Previous
-          </button>
-          <span>
-            Page {page} of {data.totalPages}
-          </span>
-          <button
-            onClick={() => goToPage(page + 1)}
-            disabled={page === data.totalPages}
-            className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
-          >
-            Next
+            + Add Zone
           </button>
         </div>
-      )}
 
-      {isModalOpen && (
-        <ZoneModal
-          zone={editingZone}
-          onClose={closeModal}
-          onSubmit={handleSubmit}
+        <input
+          type="text"
+          placeholder="Search by postcode..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full border px-3 py-2 rounded mb-4"
         />
-      )}
-    </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white border rounded-lg">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-4 py-2 text-left">Postcode</th>
+                <th className="px-4 py-2 text-left">Delivery Fee</th>
+                <th className="px-4 py-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-4 py-6 text-center text-gray-500"
+                  >
+                    Loading zones...
+                  </td>
+                </tr>
+              ) : filteredZones.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-4 py-6 text-center text-gray-500"
+                  >
+                    No zones found.
+                  </td>
+                </tr>
+              ) : (
+                filteredZones.map((zone) => (
+                  <tr key={zone.id} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-2">{zone.postcode}</td>
+                    <td className="px-4 py-2">
+                      £{zone.deliveryFee.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 space-x-2">
+                      <button
+                        onClick={() => openEditModal(zone)}
+                        className="text-blue-600 hover:underline text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(zone.id)}
+                        className="text-red-600 hover:underline text-sm"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {data?.totalPages && data.totalPages > 1 && (
+          <div className="flex justify-between items-center mt-6">
+            <button
+              onClick={() => goToPage(page - 1)}
+              disabled={page === 1}
+              className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {data.totalPages}
+            </span>
+            <button
+              onClick={() => goToPage(page + 1)}
+              disabled={page === data.totalPages}
+              className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
+
+        {isModalOpen && (
+          <ZoneModal
+            zone={editingZone}
+            onClose={closeModal}
+            onSubmit={handleSubmit}
+          />
+        )}
+      </div>
+    </ProtectedRoute>
   );
 }

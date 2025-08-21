@@ -66,7 +66,7 @@ export default function AdminOrderList() {
   useEffect(() => {
     if (status === "loading") return;
     if (!session || session.user.role !== "ADMIN") {
-      router.push("/login");
+      router.push("/Auth");
     }
   }, [session, status, router]);
 

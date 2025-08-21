@@ -9,19 +9,21 @@ import { useBasketStore } from "../store/basketStore";
 import { RouteLoader } from "@/components/RouteLoader";
 
 export default function OrderList() {
-  const { data: session, status } = useSession(); // ✅ Hook at top
-  const router = useRouter(); // ✅ Hook at top
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-  const [orders, setOrders] = useState<any[]>([]); // ✅ Hook at top
+  const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const [totalPages, setTotalPages] = useState(1);
 
   // ✅ useCallback: must be at top, before any returns
   const fetchOrders = useCallback(async () => {
     if (!session?.user?.email) return;
+    setIsLoading(true);
 
     try {
       const res = await fetch(
@@ -42,6 +44,8 @@ export default function OrderList() {
       setTotalPages(data.totalPages || 1);
     } catch (error) {
       console.error("Failed to load orders", error);
+    } finally {
+      setIsLoading(false);
     }
   }, [session, page, statusFilter]);
 
@@ -59,7 +63,7 @@ export default function OrderList() {
   }, [status, router]);
 
   // ✅ Now it's safe to do conditional rendering
-  if (status === "loading") {
+  if (status === "loading" && isLoading) {
     return <RouteLoader />;
   }
 

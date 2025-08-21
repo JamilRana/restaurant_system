@@ -7,6 +7,7 @@ import Cart from "./Cart";
 import CategorySection from "./CategorySection";
 import { useBasketStore } from "@/app/store/basketStore";
 import { RouteLoader } from "../RouteLoader";
+import { MenuSkeleton } from "./MenuSkeleton";
 
 const MenuPage = () => {
   const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
@@ -31,6 +32,7 @@ const MenuPage = () => {
 
   // Fetch categories
   useEffect(() => {
+    setLoading(true);
     const fetchCategories = async () => {
       try {
         const res = await fetch("/api/menu");
@@ -140,14 +142,30 @@ const MenuPage = () => {
   };
 
   if (loading) {
-    return <RouteLoader />;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <MenuSkeleton />
+      </div>
+    );
   }
-  if (error) return <div className="p-6 text-red-500">{error}</div>;
 
+  if (error) {
+    return (
+      <div className="p-6 text-red-500 text-center">
+        {error}
+        <button
+          onClick={() => window.location.reload()}
+          className="ml-4 text-blue-600 underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Mobile: Category Tabs */}
-      <div className="md:hidden top-0 bg-white border-b overflow-x-auto whitespace-nowrap sticky top-0 z-50 bg-white pt-4">
+      <div className="md:hidden bg-white border-b overflow-x-auto whitespace-nowrap sticky top-0 z-50 bg-white pt-4">
         <div className="flex py-2 px-2">
           {categories.map((cat) => (
             <button
@@ -188,7 +206,7 @@ const MenuPage = () => {
         </div>
 
         {/* Menu */}
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 sticky top-20">
           <div className="flex justify-between items-center mb-4 md:justify-end ">
             <button
               onClick={toggleExpandAll}
@@ -226,7 +244,7 @@ const MenuPage = () => {
       </div>
 
       {/* Mobile: Menu + Basket */}
-      <div className="md:hidden px-4 pb-20">
+      <div className="md:hidden px-4 pb-20 sticky top-20">
         {categories.map((cat) => (
           <div
             key={cat.id}

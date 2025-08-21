@@ -45,7 +45,7 @@ export default function ManageTables() {
   useEffect(() => {
     if (status === "loading") return;
     if (!session || session.user.role !== "ADMIN") {
-      router.push("/login");
+      router.push("/Auth");
     } else {
       fetchTables(page);
     }

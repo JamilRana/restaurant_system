@@ -4,13 +4,16 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { RouteLoader } from "../RouteLoader";
+
+type Role = "ADMIN" | "WAITER" | "KITCHEN" | "CUSTOMER"; // Define allowed roles
 
 export default function ProtectedRoute({
   children,
-  requiredRole = "ADMIN",
+  requiredRoles = ["ADMIN"],
 }: {
   children: React.ReactNode;
-  requiredRole?: string;
+  requiredRoles?: Role | Role[];
 }) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -19,13 +22,24 @@ export default function ProtectedRoute({
     if (status === "loading") return;
 
     if (!session) {
-      router.push("/Auth"); // or "/login"
-    } else if (session.user.role !== requiredRole) {
-      router.push("/unauthorized");
+      router.push("/Auth");
+      return;
     }
-  }, [session, status, requiredRole, router]);
 
-  if (status === "loading") return <p className="text-center">Loading...</p>;
+    const rolesArray = Array.isArray(requiredRoles)
+      ? requiredRoles
+      : [requiredRoles];
+
+    // ✅ Assert that session.user.role is of type `Role`
+    const userRole = session.user.role as Role;
+
+    if (!rolesArray.includes(userRole)) {
+      router.push("/");
+    }
+  }, [session, status, requiredRoles, router]);
+
+  if (status === "loading") return <RouteLoader />;
+  if (!session) return null;
 
   return <>{children}</>;
 }
