@@ -49,28 +49,6 @@ export default function OrderList() {
     }
   }, [session, page, statusFilter]);
 
-  // ✅ useEffects also at top
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetchOrders();
-    }
-  }, [status, fetchOrders]);
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth");
-    }
-  }, [status, router]);
-
-  // ✅ Now it's safe to do conditional rendering
-  if (status === "loading" && isLoading) {
-    return <RouteLoader />;
-  }
-
-  if (status === "unauthenticated") {
-    return null;
-  }
-
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setStatusFilter(e.target.value);
     setPage(1);
@@ -107,6 +85,28 @@ export default function OrderList() {
     },
     [router]
   );
+
+  // ✅ useEffects also at top
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchOrders();
+    }
+  }, [status, fetchOrders]);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth");
+    }
+  }, [status, router]);
+
+  // ✅ Now it's safe to do conditional rendering
+  if (status === "loading" && isLoading) {
+    return <RouteLoader />;
+  }
+
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   return (
     <div className="p-4">
