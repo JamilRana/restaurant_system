@@ -1,85 +1,137 @@
-// pages/dashboard/analytics.tsx
+// app/admin/analytics/page.tsx
 "use client";
-import { useEffect, useState } from "react";
-import SalesCard from "@/components/Admin/Analytics/SalesCard";
-import DateRangePicker from "@/components/DateRangePicker";
-import ExpenseIncomeCard from "@/components/Admin/Analytics/ExpenseIncomeCard";
-import TotalCustomersCard from "@/components/Admin/Analytics/TotalCustomersCard";
-import StaffCard from "@/components/Admin/Analytics/StaffCard";
-import SalesTrendChart from "@/components/Admin/Analytics/SalesTrendChart";
-import PopularItemsChart from "@/components/Admin/Analytics/PopularItemsChart";
-import PeakTimesChart from "@/components/Admin/Analytics/PeakTimeChart";
-import OrderTypeBreakdown from "@/components/Admin/Analytics/OrderTypeBreakdown";
-import TopDeliveryLocations from "@/components/Admin/Analytics/TopDeliveryLocations";
-import PromoCodeUsage from "@/components/Admin/Analytics/PromoCodeUsage";
-import CategoryWiseItems from "@/components/Admin/Analytics/CategoryWiseItems";
-import { RouteLoader } from "@/components/RouteLoader";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import DateRangePicker from "@/components/DateRangePicker";
+import SalesCard from "@/components/Admin/Analytics/SalesCard";
+import ProfitCard from "@/components/Admin/Analytics/ProfitCard";
+import AvgOrderCard from "@/components/Admin/Analytics/AvgOrderCard";
+import RetentionCard from "@/components/Admin/Analytics/RetentionCard";
+import SalesTrendChart from "@/components/Admin/Analytics/SalesTrendChart";
+import CategoryBreakdownChart from "@/components/Admin/Analytics/CategoryBreakdownChart";
+import OrderTypeBreakdown from "@/components/Admin/Analytics/OrderTypeBreakdown";
+import PeakHoursChart from "@/components/Admin/Analytics/PeakHoursChart";
+import TopDeliveryLocations from "@/components/Admin/Analytics/TopDeliveryLocations";
+import PromoCodeReport from "@/components/Admin/Analytics/PromoCodeReport";
+import EmployeePerformanceTable from "@/components/Admin/Analytics/EmployeePerformanceTable";
+import { RouteLoader } from "@/components/RouteLoader";
+
+type DateRange = { startDate: Date | null; endDate: Date | null };
 
 export default function AnalyticsDashboard() {
-  const [dateRange, setDateRange] = useState<{
-    startDate: Date;
-    endDate: Date;
-  }>({
-    startDate: new Date(new Date().setDate(new Date().getDate() - 30)),
-    endDate: new Date(),
-  });
-  const [loading, setLoading] = useState(true);
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
 
+  // Initialize date range and fetch data only once session is ready
   useEffect(() => {
     if (status === "loading") return;
+
     if (!session || session.user.role !== "ADMIN") {
-      router.push("/Auth");
+      router.push("/");
+      return;
     }
+
+    // Set default date range: last 30 days
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 30);
+
+    // Set dates and trigger initial fetch
+    setDateRange({ startDate, endDate });
   }, [session, status, router]);
 
-  if (status === "loading" || loading) {
-    <RouteLoader />;
-  }
+  // Fetch data whenever dateRange changes
+  useEffect(() => {
+    if (!dateRange.startDate || !dateRange.endDate) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const startDateStr = dateRange.startDate?.toISOString().split("T")[0];
+        const endDateStr = dateRange.endDate?.toISOString().split("T")[0];
+
+        const url = `/api/admin/analytics?startDate=${startDateStr}&endDate=${endDateStr}`;
+
+        const res = await fetch(url);
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch analytics: ${res.status}`);
+        }
+
+        const json = await res.json();
+        setData(json);
+      } catch (error) {
+        console.error("Error fetching analytics:", error);
+        setData({
+          summary: {
+            totalSales: 0,
+            netProfit: 0,
+            avgOrderValue: 0,
+            totalOrders: 0,
+            retentionRate: 0,
+          },
+          salesTrend: [],
+          categorySales: [],
+          orderTypes: { PICKUP: 0, DELIVERY: 0, DINEIN: 0 },
+          hourlySales: [],
+          topZones: [],
+          promoUsage: [],
+          staffPerformance: [],
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [dateRange]); // Re-fetch when date range changes
+
+  if (status === "loading" || loading) return <RouteLoader />;
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">
+      <h1 className="text-3xl font-bold text-gray-800 mb-2">
         Analytics Dashboard
       </h1>
+      <p className="text-gray-600 mb-6">
+        Track performance, costs, and customer behavior
+      </p>
 
-      {/* Date Filter */}
-      <div className="mb-6">
+      <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
-      {/* Stats Cards (Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <SalesCard dateRange={dateRange} />
-        <ExpenseIncomeCard dateRange={dateRange} />
-        <TotalCustomersCard dateRange={dateRange} />
-        <StaffCard />
+        <SalesCard data={data?.summary} />
+        <ProfitCard data={data?.summary} />
+        <AvgOrderCard data={data?.summary} />
+        <RetentionCard data={data?.summary} />
       </div>
 
-      {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <SalesTrendChart dateRange={dateRange} />
-        <PopularItemsChart dateRange={dateRange} />
+        <SalesTrendChart data={data?.salesTrend} />
+        <CategoryBreakdownChart data={data?.categorySales} />
       </div>
 
-      {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <PeakTimesChart dateRange={dateRange} />
-        <OrderTypeBreakdown dateRange={dateRange} />
+        <OrderTypeBreakdown data={data?.orderTypes} />
+        <PeakHoursChart data={data?.hourlySales} />
       </div>
 
-      {/* Charts Row 3 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <TopDeliveryLocations dateRange={dateRange} />
-        <PromoCodeUsage dateRange={dateRange} />
+        <TopDeliveryLocations data={data?.topZones} />
+        <PromoCodeReport data={data?.promoUsage} />
       </div>
 
-      {/* Final Chart */}
       <div className="mb-8">
-        <CategoryWiseItems dateRange={dateRange} />
+        <EmployeePerformanceTable data={data?.staffPerformance} />
       </div>
     </div>
   );

@@ -71,7 +71,10 @@ export async function GET(request: Request) {
       _sum: { amount: true },
     });
 
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalExpenses = expenses.reduce(
+      (sum, e) => sum + Number(e.amount),
+      0
+    );
 
     return NextResponse.json({
       data: expenses.map((e) => ({

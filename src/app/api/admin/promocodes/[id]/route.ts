@@ -69,3 +69,48 @@ export async function DELETE(
     return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const promoId = parseInt(params.id);
+    if (isNaN(promoId)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
+
+    const { active } = await req.json();
+
+    // Verify promo code belongs to restaurant
+    const promo = await prisma.promoCode.findUnique({
+      where: { id: promoId },
+    });
+
+    if (!promo) {
+      return NextResponse.json(
+        { error: "Promo code not found" },
+        { status: 404 }
+      );
+    }
+
+    // Update availability
+    const updated = await prisma.promoCode.update({
+      where: { id: promoId },
+      data: { active: Boolean(active) },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("PATCH /api/admin/promocodes/[id]/status", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}

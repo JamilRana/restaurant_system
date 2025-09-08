@@ -1,24 +1,32 @@
-// app/api/delivery-fee/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const postcode = searchParams.get("postcode");
-
-  if (!postcode) {
-    return NextResponse.json({ error: "Postcode required" }, { status: 400 });
-  }
-
+export async function GET() {
   try {
-    const zone = await prisma.deliveryZone.findFirst({
-      where: { postcode: postcode},
+    const restaurantId = 1;
+
+    const zones = await prisma.deliveryZone.findMany({
+      where: { restaurantId },
+      select: { postcode: true },
+      orderBy: { postcode: "asc" },
     });
 
-    return NextResponse.json({
-      deliveryFee: zone?.deliveryFee || 0,
+    // Normalize postcodes: trim, uppercase, add space if missing
+    const normalizedPostcodes = zones.map((z) => {
+      let pc = z.postcode.trim();
+      // Add space between outward and inward code
+      if (pc.length >= 5 && !pc.includes(" ")) {
+        pc = pc.slice(0, 3) + " " + pc.slice(3);
+      }
+      return pc.toUpperCase();
     });
-  } catch (err) {
-    return NextResponse.json({ error: "Failed to fetch fee" }, { status: 500 });
+
+    return NextResponse.json({ postcodes: normalizedPostcodes });
+  } catch (error) {
+    console.error("Failed to load postcodes:", error);
+    return NextResponse.json(
+      { error: "Failed to load delivery postcodes" },
+      { status: 500 }
+    );
   }
 }

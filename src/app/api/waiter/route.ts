@@ -1,279 +1,282 @@
-// app/api/waiter/orders/route.ts
+// app/api/waiter/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-import Pusher from "pusher";
+import { authOptions } from "@/lib/authOptions";
+import { Decimal } from "@prisma/client/runtime/library";
 
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  useTLS: true,
-});
-
-const CreateOrderSchema = z.object({
-  tableId: z.number().int().nullable().optional(),
-  deliveryType: z.enum(["PICKUP", "DELIVERY", "DINEIN"]),
-  guestName: z.string().min(1, "Guest name is required"),
-  guestEmail: z.string().email().nullable().optional(), // ✅ Fixed
-  items: z.array(
-    z.object({
-      foodId: z.coerce.number().int(),
-      quantity: z.coerce.number().int().positive(),
-      foodOptionId: z.coerce.number().int().nullable().optional(),
-    })
-  ),
-  orderNote: z.string().optional(),
-  promoCode: z.string().optional(),
-});
-
-export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || !["ADMIN", "WAITER", "KITCHEN"].includes(session.user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  //   const restaurantId = session.user.restaurantId;
-  const restaurantId = 1;
-  if (!restaurantId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const data = await request.json();
-
-  const round2 = (num: number) => Math.round(num * 100) / 100;
-
-  const parsed = CreateOrderSchema.safeParse(data);
-
-  if (!parsed.success) {
-    console.error("Zod validation error:", parsed.error.flatten());
-    return NextResponse.json(
-      { error: "Invalid data", details: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
-
-  const {
-    tableId,
-    deliveryType,
-    guestName,
-    guestEmail,
-    items,
-    orderNote,
-    promoCode,
-  } = parsed.data;
-
+export async function POST(req: Request) {
   try {
-    // Validate table (if dine-in)
-    if (deliveryType === "DINEIN" && tableId) {
-      const table = await prisma.table.findUnique({
-        where: { id: tableId },
-      });
-
-      if (!table || table.restaurantId !== restaurantId) {
-        return NextResponse.json({ error: "Invalid table" }, { status: 404 });
-      }
-
-      if (table.status === "AVAILABLE") {
-        await prisma.table.update({
-          where: { id: tableId },
-          data: { status: "OCCUPIED" }, // ✅ Fixed: no `data:`
-        });
-      }
+    const session = await getServerSession(authOptions);
+    if (
+      !session ||
+      !["ADMIN", "WAITER", "KITCHEN"].includes(session.user.role)
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get food items
-    const foodItems = await prisma.food.findMany({
-      where: {
-        id: { in: items.map((i) => i.foodId) },
-        restaurantId,
-      },
-      include: { options: true },
-    });
+    const {
+      deliveryType,
+      tableId,
+      email,
+      orderNote,
+      promoCode,
+      items,
+    }: {
+      deliveryType: "PICKUP" | "DINEIN";
+      tableId?: number;
+      email?: string;
+      orderNote?: string;
+      promoCode?: string;
+      items: Array<{
+        foodId: number;
+        quantity: number;
+        foodOptionId?: number;
+        notes?: string;
+      }>;
+    } = await req.json();
 
-    if (foodItems.length !== new Set(items.map((i) => i.foodId)).size) {
+    if (!items || items.length === 0) {
       return NextResponse.json(
-        { error: "One or more food items not found" },
-        { status: 404 }
+        { error: "At least one item is required" },
+        { status: 400 }
       );
     }
 
-    // Calculate total
-    let totalAmount = 0;
-    const orderItemsData = [];
+    if (deliveryType === "DINEIN" && !tableId) {
+      return NextResponse.json(
+        { error: "Table is required for Dine-in" },
+        { status: 400 }
+      );
+    }
 
-    for (const item of items) {
-      const food = foodItems.find((f) => f.id === item.foodId);
-      if (!food) continue;
+    const restaurantId = session.user.restaurantId;
+    if (!restaurantId) {
+      return NextResponse.json(
+        { error: "No restaurant assigned" },
+        { status: 400 }
+      );
+    }
 
-      const option = item.foodOptionId
-        ? food.options.find((o) => o.id === item.foodOptionId)
-        : null;
+    // 1. Find or create customer
+    let customer = email
+      ? await prisma.customer.findUnique({ where: { email } })
+      : null;
 
-      const itemPrice = food.price + (option?.price || 0);
-      totalAmount += itemPrice * item.quantity;
+    let customerId: number | null;
 
-      orderItemsData.push({
-        foodId: food.id,
-        quantity: item.quantity,
-        price: itemPrice,
-        foodOptionId: option?.id || null,
+    if (email && !customer) {
+      customer = await prisma.customer.create({
+        data: {
+          email,
+          name: "Guest",
+          isGuest: true,
+          userId: null,
+          totalSpent: 0,
+          orderCount: 0,
+        },
       });
     }
 
-    // Apply promo code
+    customerId = customer?.id || null;
+
+    // 2. Validate promo code (if provided)
+    let promoCodeId: number | null = null;
     let discountAmount = 0;
-    let finalAmount = round2(totalAmount - discountAmount);
+    let promo: {
+      id: number;
+      discountPercent?: Decimal | null;
+      discountAmount?: Decimal | null;
+      maxUses?: number | null;
+      maxUsesPerUser?: number | null;
+    } | null = null;
 
     if (promoCode) {
-      const promo = await prisma.promoCode.findUnique({
-        where: { code: promoCode, active: true, restaurantId },
-      });
-
-      if (promo && promo.currentUses < (promo.maxUses || Infinity)) {
-        if (totalAmount >= (promo.minOrderAmount || 0)) {
-          discountAmount = promo.discountAmount
-            ? promo.discountAmount
-            : totalAmount * (promo.discountPercent! / 100);
-          finalAmount = round2(totalAmount - discountAmount);
-
-          await prisma.promoCode.update({
-            where: { id: promo.id },
-            data: { currentUses: { increment: 1 } },
-          });
-        }
-      }
-    }
-
-    // Find or create guest customer
-    let customer: any;
-
-    if (guestEmail) {
-      customer = await prisma.customer.findFirst({
-        where: { email: guestEmail },
-      });
-
-      if (customer) {
-        if (customer.name !== guestName) {
-          await prisma.customer.update({
-            where: { id: customer.id },
-            data: { name: guestName },
-          });
-        }
-      } else {
-        customer = await prisma.customer.create({
-          data: {
-            name: guestName,
-            email: guestEmail,
-            phone: null,
-            address: null,
-            postcode: null,
-            userId: null,
-            totalSpent: 0,
-            orderCount: 0,
-          },
-        });
-      }
-    } else {
-      const anonEmail = `${guestName
-        .toLowerCase()
-        .replace(/\s+/g, "_")}_guest_${restaurantId}@anon.local`;
-
-      customer = await prisma.customer.findFirst({
+      promo = await prisma.promoCode.findFirst({
         where: {
-          name: guestName,
-          email: {
-            contains: `${guestName.toLowerCase().replace(/\s+/g, "_")}_guest_`,
-          },
+          code: promoCode,
+          restaurantId,
+          active: true,
+          expiresAt: { gte: new Date() },
+        },
+        select: {
+          id: true,
+          discountPercent: true,
+          discountAmount: true,
+          maxUses: true,
+          maxUsesPerUser: true,
         },
       });
 
-      if (!customer) {
-        customer = await prisma.customer.create({
+      if (!promo) {
+        return NextResponse.json(
+          { error: "Invalid or expired promo code" },
+          { status: 400 }
+        );
+      }
+
+      // Check per-user limit
+      if (promo.maxUsesPerUser && customerId) {
+        const usageCount = await prisma.userPromoUsage.count({
+          where: { customerId, promoCodeId: promo.id },
+        });
+        if (usageCount >= promo.maxUsesPerUser) {
+          return NextResponse.json(
+            {
+              error: `You can only use this promo code ${promo.maxUsesPerUser} time(s)`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      promoCodeId = promo.id;
+    }
+
+    // 3. Calculate totalAmount from valid items
+    let totalAmount = 0;
+    const orderItemsData: {
+      foodId: number;
+      foodOptionId: number | null;
+      quantity: number;
+      price: number;
+      notes: string | null;
+    }[] = [];
+
+    for (const item of items) {
+      const food = await prisma.food.findUnique({
+        where: { id: item.foodId, restaurantId },
+      });
+
+      if (!food) {
+        return NextResponse.json(
+          { error: `Food item ${item.foodId} not found` },
+          { status: 404 }
+        );
+      }
+
+      const option = item.foodOptionId
+        ? await prisma.foodOption.findUnique({
+            where: { id: item.foodOptionId, foodId: item.foodId },
+          })
+        : null;
+
+      const unitPrice =
+        Number(food.price) + (option ? Number(option.price) : 0);
+      const lineTotal = unitPrice * item.quantity;
+      totalAmount += lineTotal;
+
+      orderItemsData.push({
+        foodId: item.foodId,
+        foodOptionId: item.foodOptionId || null,
+        quantity: item.quantity,
+        price: unitPrice,
+        notes: item.notes || null,
+      });
+    }
+
+    // Apply discount
+    if (promo?.discountPercent) {
+      discountAmount = (totalAmount * Number(promo.discountPercent)) / 100;
+    } else if (promo?.discountAmount) {
+      discountAmount = Number(promo.discountAmount);
+    }
+    discountAmount = Math.min(discountAmount, totalAmount);
+    const finalAmount = Math.max(totalAmount - discountAmount, 0);
+
+    // 4. Transaction: Create order, items, promo usage, update customer
+    const order = await prisma.$transaction(async (tx) => {
+      // Create customer if not exists
+      if (!customerId) {
+        const newCustomer = await tx.customer.create({
           data: {
-            name: guestName,
-            email: anonEmail,
-            phone: null,
-            address: null,
-            postcode: null,
+            email: email || `guest-${Date.now()}@anon`,
+            name: "Guest",
+            isGuest: true,
             userId: null,
             totalSpent: 0,
             orderCount: 0,
           },
         });
+        customerId = newCustomer.id;
       }
-    }
 
-    // Update stats
-    await prisma.customer.update({
-      where: { id: customer.id },
-      data: {
-        totalSpent: { increment: finalAmount },
-        orderCount: { increment: 1 },
-      },
-    });
+      // Increment promo usage (if valid)
+      if (promoCodeId && promo && promo.maxUses !== null) {
+        const updated = await tx.promoCode.updateMany({
+          where: {
+            id: promoCodeId,
+            currentUses: { lt: promo.maxUses! },
+          },
+          data: { currentUses: { increment: 1 } },
+        });
+        if (updated.count === 0) {
+          throw new Error("Promo code usage limit exceeded");
+        }
+      }
 
-    // Create order
-    const order = await prisma.order.create({
-      data: {
-        totalAmount,
-        finalAmount,
-        discountAmount,
-        promoCode: promoCode || null,
-        paymentStatus: "paid",
-        paymentMethod: "cash",
-        status: "accepted",
-        deliveryType,
-        orderNote: orderNote || null,
-        guestName,
-        guestEmail,
-        isGuestOrder: true,
-        restaurant: { connect: { id: restaurantId } },
-        customer: { connect: { id: customer.id } },
-        createdBy: { connect: { id: session.user.id } },
-        items: {
-          create: orderItemsData,
+      // Create order
+      const newOrder = await tx.order.create({
+        data: {
+          customerId,
+          restaurantId,
+          deliveryType,
+          orderNote: orderNote || null,
+          status: "PREPARING",
+          totalAmount,
+          finalAmount,
+          discountAmount,
+          promoCodeId: promoCodeId || null,
+          createdById: session.user.id,
+          items: {
+            create: orderItemsData.map((item) => ({
+              foodId: item.foodId,
+              foodOptionId: item.foodOptionId,
+              quantity: item.quantity,
+              price: item.price,
+              notes: item.notes,
+            })),
+          },
         },
-        ...(tableId && { table: { connect: { id: tableId } } }),
-      },
-      include: {
-        items: { include: { food: true } },
-        customer: true,
-        table: true,
-        createdBy: true,
-      },
-    });
-
-    // Update table current order
-    if (tableId) {
-      await prisma.table.update({
-        where: { id: tableId },
-        data: { currentOrderId: order.id },
       });
-    }
 
-    // 🚀 Trigger realtime event
-    await pusher.trigger("restaurant-" + restaurantId, "order-created", {
-      id: order.id,
-      status: order.status,
-      deliveryType: order.deliveryType,
-      tableId: order.tableId,
-      totalAmount: order.totalAmount,
-      createdAt: order.createdAt,
-      guestName: order.guestName,
-      items: order.items.map((item: any) => ({
-        foodName: item.food.name,
-        quantity: item.quantity,
-        price: item.price,
-      })),
+      // Create promo usage record
+      if (promoCodeId) {
+        await tx.userPromoUsage.create({
+          data: {
+            customerId,
+            promoCodeId,
+            orderId: newOrder.id,
+          },
+        });
+      }
+
+      // Update customer stats
+      await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          totalSpent: { increment: finalAmount },
+          orderCount: { increment: 1 },
+        },
+      });
+
+      // Update table if DINEIN
+      if (deliveryType === "DINEIN" && tableId) {
+        await tx.table.update({
+          where: { id: tableId, restaurantId },
+          data: {
+            currentOrderId: newOrder.id,
+            status: "OCCUPIED",
+          },
+        });
+      }
+
+      return newOrder;
     });
 
-    return NextResponse.json(order, { status: 201 });
-  } catch (error: any) {
-    console.error("Create waiter order failed:", error);
+    return NextResponse.json({ success: true, order }, { status: 201 });
+  } catch (error) {
+    console.error("Waiter order creation error:", error);
     return NextResponse.json(
       { error: "Failed to create order" },
       { status: 500 }

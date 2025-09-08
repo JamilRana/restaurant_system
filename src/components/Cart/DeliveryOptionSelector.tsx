@@ -22,8 +22,9 @@ export default function DeliveryOptionSelector() {
     deliveryFee,
     orderNote,
     basketItems,
-    guestName,
-    guestEmail,
+    Phone,
+    Name,
+    Email,
     setDeliveryMode,
     setPostcode,
     setAddress,
@@ -38,6 +39,7 @@ export default function DeliveryOptionSelector() {
 
   const [localName, setLocalName] = useState("");
   const [localEmail, setLocalEmail] = useState("");
+  const [localPhone, setLocalPhone] = useState("");
 
   useEffect(() => {
     if (!session) return;
@@ -59,9 +61,10 @@ export default function DeliveryOptionSelector() {
   }, [postcode]);
 
   useEffect(() => {
-    setLocalName(guestName);
-    setLocalEmail(guestEmail);
-  }, [guestName, guestEmail]);
+    setLocalName(Name);
+    setLocalEmail(Email);
+    setLocalPhone(Phone);
+  }, [Name, Email, Phone]);
 
   // Fetch postcode results
   useEffect(() => {
@@ -113,11 +116,14 @@ export default function DeliveryOptionSelector() {
 
   const handleCheckout = () => {
     // If guest checkout, ensure name/email
-    if (!session && (!guestName.trim() || !guestEmail.trim())) {
-      alert("Please enter your name and email to continue");
+    if (
+      !session &&
+      (!localName.trim() || !localEmail.trim() || !localPhone.trim())
+    ) {
+      alert(`Please enter your name, phone and email to continue`);
       return;
     }
-
+    setGuestInfo(localName, localEmail, localPhone);
     // If valid, go to checkout
     router.push("/checkout");
   };
@@ -216,16 +222,24 @@ export default function DeliveryOptionSelector() {
             <input
               type="text"
               placeholder="Your Name"
-              defaultValue={guestName}
-              onChange={(e) => setGuestInfo(e.target.value, guestEmail)}
+              defaultValue={Name}
+              onChange={(e) => setLocalName(e.target.value)}
               className="w-full border px-2 py-1 rounded"
               aria-label="Your Name"
             />
             <input
+              type="text"
+              placeholder="Phone Number"
+              defaultValue={Phone}
+              onChange={(e) => setLocalPhone(e.target.value)}
+              className="w-full border px-2 py-1 rounded"
+              aria-label="Your Phone"
+            />
+            <input
               type="email"
               placeholder="Your Email"
-              defaultValue={guestEmail}
-              onChange={(e) => setGuestInfo(guestName, e.target.value)}
+              defaultValue={Email}
+              onChange={(e) => setLocalEmail(e.target.value)}
               className="w-full border px-2 py-1 rounded"
               aria-label="Your Email"
             />

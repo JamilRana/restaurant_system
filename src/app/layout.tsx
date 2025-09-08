@@ -9,6 +9,7 @@ import AuthSessionProvider from "./providers/SessionProviders";
 import QueryClientProviderWrapper from "@/QueryClientProvider";
 import { LoadingProvider } from "@/context/LoadingContext";
 import { RouteLoader } from "@/components/RouteLoader";
+import { Toaster } from "react-hot-toast";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,6 +18,7 @@ export const metadata: Metadata = {
   description: "",
 };
 
+// layout.tsx
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,15 +28,17 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} min-h-screen flex flex-col`}>
         <AuthSessionProvider>
-          <LoadingProvider>
-            <RouteLoader />
-            <Navbar />
-            <Topbar />
-            <QueryClientProviderWrapper>
-              <main className="flex-grow pb-10">{children}</main>
-            </QueryClientProviderWrapper>
-            <Footer />
-          </LoadingProvider>
+          {" "}
+          {/* Now includes auth loader */}
+          <Navbar />
+          <Topbar />
+          <QueryClientProviderWrapper>
+            <main className="flex-grow pb-10">
+              {children}
+              <Toaster position="top-right" reverseOrder={false} />
+            </main>
+          </QueryClientProviderWrapper>
+          <Footer />
         </AuthSessionProvider>
       </body>
     </html>

@@ -165,7 +165,7 @@ export default function ExpenseManagement() {
   const csvData = (data?.data || []).map((e) => ({
     Description: e.description,
     Category: e.category,
-    Amount: `£${e.amount.toFixed(2)}`,
+    Amount: `£${e.amount}`,
     Date: e.date,
     Staff: e.staff || "N/A",
     Notes: e.notes || "N/A",
@@ -296,7 +296,7 @@ export default function ExpenseManagement() {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-gray-500">Total Expenses</h3>
           <p className="text-2xl font-bold text-gray-900">
-            £{data?.totalExpenses.toFixed(2) || "0.00"}
+            £{data?.totalExpenses || "0.00"}
           </p>
         </div>
         {data &&
@@ -305,9 +305,7 @@ export default function ExpenseManagement() {
               <h3 className="text-sm font-medium text-gray-500">
                 {cat.replace("_", " ")}
               </h3>
-              <p className="text-2xl font-bold text-gray-900">
-                £{amount.toFixed(2)}
-              </p>
+              <p className="text-2xl font-bold text-gray-900">£{amount}</p>
             </div>
           ))}
       </div>
@@ -395,7 +393,7 @@ export default function ExpenseManagement() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      £{e.amount.toFixed(2)}
+                      £{e.amount}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {e.date}

@@ -107,83 +107,166 @@ export default function OrderList() {
   if (status === "unauthenticated") {
     return null;
   }
+  const activeStatuses = ["PLACED", "ACCEPTED", "PREPARING", "READY"];
+  const activeOrders = orders.filter((o) => activeStatuses.includes(o.status));
+  const historyOrders = orders.filter(
+    (o) => !activeStatuses.includes(o.status)
+  );
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">My Orders</h2>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+      <div className="max-w-5xl mx-auto">
+        <h2 className="text-3xl font-bold text-center mb-2 text-gray-800">
+          My Orders
+        </h2>
+        <p className="text-center text-gray-600 mb-8">
+          Track your current orders and repeat past ones
+        </p>
 
-      <div className="mb-4">
-        <label className="mr-2 font-medium">Filter by status:</label>
-        <select
-          className="border px-2 py-1 rounded"
-          value={statusFilter}
-          onChange={handleFilterChange}
-        >
-          <option value="">All</option>
-          <option value="placed">Placed</option>
-          <option value="accepted">Accepted</option>
-          <option value="preparing">Preparing</option>
-          <option value="ready">Ready</option>
-          <option value="delivered">Delivered</option>
-          <option value="rejected">Rejected</option>
-        </select>
-      </div>
+        {/* Filter */}
+        <div className="flex flex-wrap justify-center gap-4 mb-8">
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm"
+          >
+            <option value="">All Orders</option>
+            <option value="PLACED">Placed</option>
+            <option value="ACCEPTED">Accepted</option>
+            <option value="PREPARING">Preparing</option>
+            <option value="READY">Ready</option>
+            <option value="DELIVERED">Delivered</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+        </div>
 
-      {orders.length === 0 ? (
-        <p className="text-gray-500">No orders found.</p>
-      ) : (
-        orders.map((order) => (
-          <div key={order.id} className="border p-4 mb-4 rounded shadow">
-            <p className="font-semibold">Order ID: {order.id}</p>
-            <p>Total Amount: £{order.totalAmount.toFixed(2)}</p>
-            <p>
-              Status: <strong>{order.status}</strong>
-            </p>
-            <p>Restaurant: {order.restaurant?.name}</p>
-            <div className="mt-2">
-              <button
-                className="bg-blue-500 text-white px-4 py-1 rounded mr-2"
-                onClick={() => setSelectedOrder(order)}
-              >
-                Details
-              </button>
-              <button
-                className="bg-green-500 text-white px-4 py-1 rounded"
-                onClick={() => handleRepeatOrder(order.id)}
-              >
-                Repeat Order
-              </button>
+        {/* Active Orders */}
+        {activeOrders.length > 0 && (
+          <section className="mb-12">
+            <h3 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+              <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+              Active Orders
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {activeOrders.map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onDetails={() => setSelectedOrder(order)}
+                  onRepeat={() => handleRepeatOrder(order.id)}
+                />
+              ))}
             </div>
-          </div>
-        ))
-      )}
+          </section>
+        )}
 
-      <div className="flex justify-between items-center mt-6">
-        <button
-          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-          disabled={page === 1}
-          className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
-        >
-          Previous
-        </button>
-        <span>
-          Page {page} of {totalPages}
+        {historyOrders.length > 0 && (
+          <section>
+            <h3 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+              <span className="w-3 h-3 bg-gray-400 rounded-full"></span>
+              Order History
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {historyOrders.map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onDetails={() => setSelectedOrder(order)}
+                  onRepeat={() => handleRepeatOrder(order.id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+        {/* Empty State */}
+        {orders.length === 0 && (
+          <div className="text-center py-16 bg-white/60 backdrop-blur-sm rounded-2xl shadow">
+            <h3 className="text-xl font-medium text-gray-700 mb-2">
+              No orders found
+            </h3>
+            <p className="text-gray-500">
+              Your order history will appear here.
+            </p>
+          </div>
+        )}
+        <div className="flex justify-between items-center mt-6">
+          <button
+            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            disabled={page === 1}
+            className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+            disabled={page === totalPages}
+            className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+
+        {selectedOrder && (
+          <OrderDetailModal
+            order={selectedOrder}
+            onClose={() => setSelectedOrder(null)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ✅ Compact Glass Card
+function OrderCard({ order, onDetails, onRepeat }: any) {
+  const statusColors = {
+    PLACED: "bg-blue-100 text-blue-800",
+    ACCEPTED: "bg-indigo-100 text-indigo-800",
+    PREPARING: "bg-orange-100 text-orange-800",
+    READY: "bg-green-100 text-green-800",
+    DELIVERED: "bg-gray-100 text-gray-800",
+    REJECTED: "bg-red-100 text-red-800",
+  };
+
+  const formattedDate = new Date(order.createdAt).toLocaleDateString();
+
+  return (
+    <div className="bg-white/90 backdrop-blur-sm border border-gray-200/60 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02]">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <p className="font-bold text-gray-800">#{order.id}</p>
+          <p className="text-sm text-gray-600">{formattedDate}</p>
+        </div>
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full `}>
+          {order.status}
         </span>
-        <button
-          onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-          disabled={page === totalPages}
-          className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
-        >
-          Next
-        </button>
       </div>
 
-      {selectedOrder && (
-        <OrderDetailModal
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-        />
-      )}
+      <p className="text-lg font-semibold text-gray-800 mb-1">
+        £{order.finalAmount || order.totalAmount}
+      </p>
+      <p className="text-sm text-gray-600">{order.restaurant?.name}</p>
+
+      <div className="flex gap-3 mt-4">
+        <button
+          onClick={onDetails}
+          className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium py-2 rounded-lg transition"
+        >
+          Details
+        </button>
+        <button
+          onClick={onRepeat}
+          className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2 rounded-lg transition"
+        >
+          Repeat
+        </button>
+      </div>
     </div>
   );
 }

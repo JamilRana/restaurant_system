@@ -2,13 +2,19 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "../../../lib/authOptions";
-import { $Enums } from "@prisma/client";
+import { authOptions } from "@/lib/authOptions";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "KITCHEN") {
+
+  // Check authentication
+  if (!session || !["KITCHEN", "ADMIN"].includes(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const restaurantId = session.user.restaurantId;
+  if (!restaurantId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -17,28 +23,34 @@ export async function GET(request: Request) {
   const statusFilter = searchParams.get("status") || "";
   const search = searchParams.get("search") || "";
 
-  const validStatuses: $Enums.OrderStatus[] = [
-    "accepted",
-    "preparing",
-    "ready",
-  ];
+  // Define valid statuses
+  const validStatuses = ["ACCEPTED", "PREPARING", "READY"];
+
+  // Normalize filter
+  const normalizedStatus = statusFilter.toUpperCase();
 
   // Base where clause
-  let whereClause: any = { status: { in: validStatuses } };
+  const whereClause: any = {
+    restaurantId,
+    status: { in: validStatuses },
+  };
 
-  if (statusFilter && validStatuses.includes(statusFilter as any)) {
-    whereClause.status = statusFilter;
+  // Filter by status
+  if (normalizedStatus && validStatuses.includes(normalizedStatus as any)) {
+    whereClause.status = normalizedStatus;
   }
 
+  // Search
   if (search) {
     const searchInt = parseInt(search);
     whereClause.OR = [
-      { id: isNaN(searchInt) ? undefined : { equals: searchInt } },
+      isNaN(searchInt) ? undefined : { id: { equals: searchInt } },
       { customer: { name: { contains: search, mode: "insensitive" } } },
     ].filter(Boolean);
   }
 
   try {
+    // Fetch orders, total count, and grouped counts
     const [orders, total, counts] = await Promise.all([
       prisma.order.findMany({
         where: whereClause,
@@ -67,7 +79,8 @@ export async function GET(request: Request) {
       prisma.order.groupBy({
         by: ["status"],
         where: {
-          status: { in: validStatuses },
+          restaurantId,
+          status: { in: ["ACCEPTED", "PREPARING", "READY"] },
           ...(search
             ? {
                 OR: [
@@ -81,19 +94,24 @@ export async function GET(request: Request) {
               }
             : {}),
         },
-        _count: { id: true },
+        _count: {
+          id: true,
+        },
       }),
     ]);
 
+    // Initialize counts
     const statusCounts = {
       accepted: 0,
       preparing: 0,
       ready: 0,
     };
 
-    counts.forEach((c) => {
-      if (c.status in statusCounts) {
-        statusCounts[c.status as keyof typeof statusCounts] = c._count.id;
+    // ✅ Map counts safely (groupBy returns array)
+    counts.forEach((group) => {
+      const status = group.status.toLowerCase();
+      if (status in statusCounts) {
+        statusCounts[status as keyof typeof statusCounts] = group._count.id;
       }
     });
 

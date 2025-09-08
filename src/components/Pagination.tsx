@@ -6,11 +6,16 @@ type PaginationProps = {
   onPageChange: (page: number) => void;
 };
 
-export default function Pagination({ page, total, limit, onPageChange }: PaginationProps) {
+export default function Pagination({
+  page,
+  total,
+  limit,
+  onPageChange,
+}: PaginationProps) {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="flex justify-between items-center mt-6">
+    <div className="flex justify-between items-center gap-4 mt-6">
       <button
         onClick={() => onPageChange(page - 1)}
         disabled={page === 1}

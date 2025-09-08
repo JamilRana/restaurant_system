@@ -1,26 +1,22 @@
-// components/analytics/SalesCard.tsx
-import { AnalyticsDateProps } from '@/types/analytics';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+// components/Admin/Analytics/SalesCard.tsx
+import React from "react";
 
-export default function SalesCard({ dateRange }:AnalyticsDateProps) {
-  const { data, isLoading } = useQuery({
-    queryKey:['sales', dateRange], 
-    queryFn:async () => { const res = await axios.get('/api/admin/analytics/sales', {
-      params: { from: dateRange.startDate, to: dateRange.endDate },
-      
-    });
-    return res.data as { totalSales: number; totalOrders: number };
+interface SalesCardProps {
+  data: { totalSales: number } | null;
 }
-  });
 
-  if (isLoading) return <div className="bg-white p-6 rounded-lg shadow animate-pulse">Loading...</div>;
-
+const SalesCard: React.FC<SalesCardProps> = ({ data }) => {
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-white p-6 rounded-lg shadow-md border hover:shadow-lg transition-shadow">
       <h3 className="text-lg font-semibold text-gray-700">Total Sales</h3>
-      <p className="text-3xl font-bold text-green-600 mt-2">£{data?.totalSales?.toFixed(2) || 0}</p>
-      <p className="text-sm text-gray-500">{data?.totalOrders} orders</p>
+      <p className="text-3xl font-bold text-green-600 mt-2">
+        £{data?.totalSales?.toFixed(2) || "0.00"}
+      </p>
+      <p className="text-sm text-gray-500 mt-1">
+        Gross revenue from all orders
+      </p>
     </div>
   );
-}
+};
+
+export default SalesCard;

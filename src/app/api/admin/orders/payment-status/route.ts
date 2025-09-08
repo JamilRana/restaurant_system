@@ -34,7 +34,7 @@ export async function PATCH(request: Request) {
 
     const updatedOrder = await prisma.order.update({
       where: { id: Number(orderId) },
-      data: { paymentStatus: "paid" },
+      data: { paymentStatus: "PAID" },
       include: {
         customer: { select: { name: true, email: true } },
         items: { include: { food: true } },

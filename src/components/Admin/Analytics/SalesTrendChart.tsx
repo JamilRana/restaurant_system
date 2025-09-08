@@ -1,30 +1,68 @@
-import { AnalyticsDateProps, SalesTrendItem } from '@/types/analytics';
-import { useQuery } from '@tanstack/react-query';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import axios from 'axios';
+// components/Admin/Analytics/SalesTrendChart.tsx
+import React from "react";
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
 
-export default function SalesTrendChart({ dateRange }: AnalyticsDateProps) {
-  const { data, isLoading } = useQuery<SalesTrendItem[]>({
-    queryKey: ['salesTrend', dateRange],
-    queryFn: async (): Promise<SalesTrendItem[]> => {
-      const res = await axios.get('/api/admin/analytics/sales-trend', { params: dateRange });
-      return res.data as SalesTrendItem[];
-    }
-  });
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
-  if (isLoading) return <div className="bg-white p-6 rounded-lg shadow">Loading...</div>;
+interface SalesTrendData {
+  date: string;
+  value: number;
+}
+
+interface SalesTrendChartProps {
+  data: SalesTrendData[] | null;
+}
+
+const SalesTrendChart: React.FC<SalesTrendChartProps> = ({ data }) => {
+  const chartData = {
+    labels: data?.map((d) => d.date) || [],
+    datasets: [
+      {
+        label: "Daily Sales (£)",
+        data: data?.map((d) => d.value) || [],
+        borderColor: "#4f46e5",
+        backgroundColor: "rgba(79, 70, 229, 0.1)",
+        tension: 0.3,
+        fill: true,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    plugins: {
+      legend: { position: "top" as const },
+      title: { display: true, text: "Sales Trend Over Time" },
+    },
+    scales: {
+      y: { beginAtZero: true, title: { display: true, text: "Sales (£)" } },
+      x: { title: { display: true, text: "Date" } },
+    },
+  };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-semibold">Sales Trend</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
-          <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
-          <Line type="monotone" dataKey="total" stroke="#10b981" />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="bg-white p-6 rounded-lg shadow-md border h-80">
+      <Line data={chartData} options={options} />
     </div>
   );
-}
+};
+
+export default SalesTrendChart;

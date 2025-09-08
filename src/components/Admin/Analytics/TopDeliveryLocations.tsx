@@ -1,40 +1,40 @@
 // components/Admin/Analytics/TopDeliveryLocations.tsx
-import { AnalyticsDateProps } from "@/types/analytics";
-import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import React from "react";
 
-export default function TopDeliveryLocations({ dateRange }: AnalyticsDateProps) {
-  const { data, isLoading } = useQuery({
-    queryKey:["deliveryLocations", dateRange],
-    queryFn: async () => {
-      const res = await axios.get("/api/admin/analytics/delivery-locations", { params: dateRange });
-      return res.data as { postcode: string; count: number }[];
-    },
-    
-      staleTime: 1000 * 60 * 5, // 5 minutes
-    }
-  );
+interface LocationData {
+  postcode: string;
+  count: number;
+}
 
-  if (isLoading) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        Loading chart...
-      </div>
-    );
-  }
+interface TopDeliveryLocationsProps {
+  data: LocationData[] | null;
+}
 
+const TopDeliveryLocations: React.FC<TopDeliveryLocationsProps> = ({
+  data,
+}) => {
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-semibold">Top Delivery Locations</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data}>
-          <XAxis dataKey="postcode" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="count" fill="#ff7875" />
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="bg-white p-6 rounded-lg shadow-md border">
+      <h3 className="text-lg font-semibold text-gray-700 mb-4">
+        Top Delivery Zones
+      </h3>
+      {data && data.length > 0 ? (
+        <ul className="space-y-2">
+          {data.map((zone, idx) => (
+            <li
+              key={idx}
+              className="flex justify-between py-1 border-b border-gray-100 last:border-0"
+            >
+              <span className="font-medium">{zone.postcode}</span>
+              <span className="text-gray-600">{zone.count} orders</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500">No delivery data available</p>
+      )}
     </div>
   );
-}
+};
+
+export default TopDeliveryLocations;

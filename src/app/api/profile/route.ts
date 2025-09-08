@@ -68,21 +68,21 @@ export async function PUT(request: Request) {
     if (action === "profile") {
       const updates: any = {};
       const customerUpdates: any = {};
-      const orderUpdates: any = {};
+      const reservationUpdates: any = {};
 
       if (body.name !== undefined) {
         customerUpdates.name = body.name.trim();
-        orderUpdates.guestName = body.name.trim();
+        reservationUpdates.name = body.name.trim();
       }
       if (body.phone !== undefined) {
-        customerUpdates.phone = body.phone.trim();
+        reservationUpdates.phone = body.phone.trim();
       }
       if (body.email !== undefined) {
         const newEmail = body.email.trim();
 
         updates.email = newEmail;
         customerUpdates.email = newEmail;
-        orderUpdates.guestEmail = newEmail;
+        reservationUpdates.email = newEmail;
       }
       if (body.address !== undefined) {
         customerUpdates.address = body.address.trim();
@@ -100,9 +100,9 @@ export async function PUT(request: Request) {
           where: { userId: userId },
           data: customerUpdates,
         }),
-        prisma.order.updateMany({
-          where: { guestEmail: userEmail },
-          data: orderUpdates,
+        prisma.reservation.updateMany({
+          where: { email: userEmail },
+          data: reservationUpdates,
         }),
       ]);
 

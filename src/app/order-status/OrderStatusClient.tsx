@@ -1,9 +1,10 @@
 // app/order-status/OrderStatusClient.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBasketStore } from "../store/basketStore";
+import { da } from "zod/v4/locales/index.cjs";
 
 export default function OrderStatusClient() {
   const router = useRouter();
@@ -14,52 +15,70 @@ export default function OrderStatusClient() {
   const orderIdFromCash = searchParams.get("orderId");
   const clearBasket = useBasketStore((state) => state.clearBasket);
 
-  // ✅ Move all useEffects to the top level (no early returns before them)
+  // ✅ Prevent double execution
+  const hasProcessed = useRef(false);
+
   useEffect(() => {
-    // Case 1: User came from Stripe and payment failed
+    // Skip if already processed
+    if (hasProcessed.current) return;
+    if (!sessionId && success !== "false" && !paymentMethod) return;
+
+    // Mark as processing
+    hasProcessed.current = true;
+
+    // Case 1: Payment failed
     if (success === "false") {
       alert("Payment was canceled. You can try again.");
       router.push("/checkout");
       return;
     }
 
-    // Case 2: Stripe succeeded → verify session
+    // Case 2: Stripe success
     if (success === "true" && sessionId) {
-      fetch("/api/orders/confirm", {
+      fetch("/api/orders/confirm-order-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId }),
       })
         .then((res) => res.json())
         .then((data) => {
+          console.log("Customer data received:", data.customer);
           if (data.success) {
-            clearBasket();
-            router.push(`/orders?orderId=${data.orderId}`);
+            if (data.customer.isGuest) {
+              clearBasket();
+              router.push(
+                `/dashboard?phone=${encodeURIComponent(
+                  data.customer.phone
+                )}&email=${encodeURIComponent(data.customer.email)}`
+              );
+            } else {
+              clearBasket();
+              router.push(`/account`);
+            }
           } else {
             alert(
               "Payment succeeded, but order could not be saved. Contact support."
             );
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("Order confirmation error:", err);
           alert("An error occurred. Please contact support.");
         });
       return;
     }
 
-    // Case 3: Cash payment — redirect immediately
+    // Case 3: Cash
     if (paymentMethod === "cash" && orderIdFromCash) {
       clearBasket();
       router.push(`/orders?orderId=${orderIdFromCash}`);
       return;
     }
 
-    // Case 4: Invalid state
-    if (success !== "true" && success !== "false" && !paymentMethod) {
-      alert("Invalid order status.");
-      router.push("/");
-    }
-  }, [success, sessionId, paymentMethod, orderIdFromCash, clearBasket, router]); // ✅ Add ALL dependencies
+    // Case 4: Invalid
+    alert("Invalid order status.");
+    router.push("/");
+  }, [success, sessionId, paymentMethod, orderIdFromCash, clearBasket, router]);
 
   return <p>Processing your order...</p>;
 }

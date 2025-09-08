@@ -12,21 +12,6 @@ const TableSchema = z.object({
   location: z.string().optional(),
 });
 
-type ApiResponse = {
-  tables: {
-    id: number;
-    number: string;
-    capacity: number;
-    location: string | null;
-    status: "AVAILABLE" | "OCCUPIED" | "RESERVED" | "CLEANING";
-    currentOrderId: number | null;
-    createdAt: string;
-  }[];
-  totalCount: number;
-  totalPages: number;
-  currentPage: number;
-};
-
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -37,8 +22,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    //const restaurantId = session.user.restaurantId;
-    const restaurantId = 1;
+    const restaurantId = session.user.restaurantId; // Use real ID
+    if (!restaurantId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -46,23 +34,16 @@ export async function GET(req: Request) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
 
-    if (!restaurantId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Build WHERE clause
+    // Base WHERE clause
     const where: any = { restaurantId };
     if (search) {
-      where.number = {
-        contains: search,
-        mode: "insensitive",
-      };
+      where.number = { contains: search, mode: "insensitive" };
     }
     if (status) {
       where.status = status;
     }
 
-    // Fetch paginated tables + total count
+    // Fetch paginated tables
     const [tables, totalCount] = await Promise.all([
       prisma.table.findMany({
         where,
@@ -73,9 +54,27 @@ export async function GET(req: Request) {
       prisma.table.count({ where }),
     ]);
 
+    // ✅ Fetch full counts for stats (ignore pagination & search for this)
+    const fullWhere = { restaurantId }; // All tables in restaurant
+    const [availableCount, occupiedCount, reservedCount, cleaningCount] =
+      await Promise.all([
+        prisma.table.count({
+          where: { ...fullWhere, status: "AVAILABLE" },
+        }),
+        prisma.table.count({
+          where: { ...fullWhere, status: "OCCUPIED" },
+        }),
+        prisma.table.count({
+          where: { ...fullWhere, status: "RESERVED" },
+        }),
+        prisma.table.count({
+          where: { ...fullWhere, status: "CLEANING" },
+        }),
+      ]);
+
     const totalPages = Math.ceil(totalCount / limit);
 
-    const response: ApiResponse = {
+    const response = {
       tables: tables.map((table) => ({
         ...table,
         createdAt: table.createdAt.toISOString(),
@@ -83,6 +82,13 @@ export async function GET(req: Request) {
       totalCount,
       totalPages,
       currentPage: page,
+      stats: {
+        total: totalCount,
+        available: availableCount,
+        occupied: occupiedCount,
+        reserved: reservedCount,
+        cleaning: cleaningCount,
+      },
     };
 
     return NextResponse.json(response);
@@ -230,22 +236,47 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { tableId, status } = await request.json();
-  const validStatuses = ["AVAILABLE", "OCCUPIED", "RESERVED", "CLEANING"];
+  let tableId: number;
+  let status: string;
 
-  if (!validStatuses.includes(status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  try {
+    const body = await request.json();
+    tableId = body.tableId;
+    status = body.status;
+
+    if (!tableId || !status) {
+      return NextResponse.json(
+        { error: "Missing tableId or status" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof tableId !== "number" || isNaN(tableId)) {
+      return NextResponse.json({ error: "Invalid tableId" }, { status: 400 });
+    }
+
+    const validStatuses = ["AVAILABLE", "OCCUPIED", "RESERVED", "CLEANING"];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+  } catch (err) {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   try {
-    const table = await prisma.table.findUnique({ where: { id: tableId } });
+    const table = await prisma.table.findUnique({
+      where: { id: tableId },
+    });
+
     if (!table || table.restaurantId !== session.user.restaurantId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json({ error: "Table not found" }, { status: 404 });
     }
 
     const updated = await prisma.table.update({
       where: { id: tableId },
-      data: { status },
+      data: {
+        status: status as "AVAILABLE" | "OCCUPIED" | "RESERVED" | "CLEANING",
+      },
     });
 
     return NextResponse.json(updated);

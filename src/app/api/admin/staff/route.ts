@@ -29,10 +29,10 @@ const StaffSchema = z.object({
     .transform((val) => (val === "" ? null : val)),
   hireDate: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-    .optional(),
-  salary: z.number().positive().optional().nullable(),
-  hourlyRate: z.number().positive().optional().nullable(),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
+    .refine((date) => !isNaN(new Date(date).getTime()), "Invalid date"),
+  salary: z.number().optional().nullable(),
+  hourlyRate: z.number().optional().nullable(),
   salaryPeriod: z.enum(["HOURLY", "WEEKLY", "MONTHLY"]).optional().nullable(),
   active: z.boolean().optional(),
 });
@@ -58,9 +58,8 @@ export async function GET(request: Request) {
   const offset = (page - 1) * limit;
 
   try {
-    const where = {
+    const where: any = {
       restaurantId,
-      active: true,
       ...(search && {
         OR: [
           { name: { contains: search, mode: Prisma.QueryMode.insensitive } },
@@ -84,6 +83,7 @@ export async function GET(request: Request) {
           hourlyRate: true,
           salaryPeriod: true,
           active: true,
+          userId: true, // Include userId to check user account
         },
         orderBy: { name: "asc" },
         skip: offset,
@@ -91,6 +91,7 @@ export async function GET(request: Request) {
       }),
       prisma.staff.count({ where }),
     ]);
+    console.log("Fetched staff salary type:", typeof staff[0]?.salary);
 
     return NextResponse.json({
       staff,
@@ -146,7 +147,9 @@ export async function POST(request: Request) {
         hireDate: parsed.hireDate ? new Date(parsed.hireDate) : new Date(),
         salary: parsed.salary,
         hourlyRate: parsed.hourlyRate,
-        salaryPeriod: parsed.salaryPeriod,
+        ...(parsed.salaryPeriod !== null && {
+          salaryPeriod: parsed.salaryPeriod,
+        }),
         active: parsed.active ?? true,
         restaurant: { connect: { id: restaurantId } },
       },
@@ -192,6 +195,9 @@ export async function PUT(request: Request) {
     const data = await request.json();
     const parsed = StaffSchema.parse(data);
 
+    console.log("Received data:", data);
+    console.log("Parsed:", parsed);
+
     if (!parsed.id) {
       return NextResponse.json(
         { error: "Staff ID is required" },
@@ -216,6 +222,7 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Update staff and potentially user status
     const updated = await prisma.staff.update({
       where: { id: parsed.id },
       data: {
@@ -226,7 +233,9 @@ export async function PUT(request: Request) {
         hireDate: parsed.hireDate ? new Date(parsed.hireDate) : staff.hireDate,
         salary: parsed.salary,
         hourlyRate: parsed.hourlyRate,
-        salaryPeriod: parsed.salaryPeriod,
+        ...(parsed.salaryPeriod !== null && {
+          salaryPeriod: parsed.salaryPeriod,
+        }),
         active: parsed.active ?? true,
       },
     });
@@ -253,6 +262,73 @@ export async function PUT(request: Request) {
   }
 }
 
+export async function PATCH(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    const { active } = await req.json();
+
+    if (!id || isNaN(Number(id))) {
+      return NextResponse.json(
+        { error: "Invalid or missing id" },
+        { status: 400 }
+      );
+    }
+
+    const staffId = parseInt(id);
+
+    const staff = await prisma.staff.findUnique({
+      where: { id: staffId },
+      include: { user: true },
+    });
+
+    if (!staff) {
+      return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+    }
+
+    // Prevent self-deactivation
+    if (staff.userId === session.user.id) {
+      return NextResponse.json(
+        { error: "You cannot deactivate your own account" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Update staff status
+      await tx.staff.update({
+        where: { id: staffId },
+        data: {
+          active: Boolean(active),
+        },
+      });
+
+      // Only update user status if staff has a user account
+      if (staff.userId) {
+        await tx.user.update({
+          where: { id: staff.userId },
+          data: { active: Boolean(active) },
+        });
+      }
+    });
+
+    return NextResponse.json({
+      message: `Staff ${active ? "activated" : "deactivated"} successfully`,
+    });
+  } catch (error) {
+    console.error("PATCH /api/admin/staff", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
@@ -278,6 +354,17 @@ export async function DELETE(request: Request) {
     const staff = await prisma.staff.findUnique({ where: { id } });
     if (!staff || staff.restaurantId !== restaurantId) {
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+    }
+
+    // Check if staff has a user account
+    if (staff.userId) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot delete staff with user account. Please delete the user first.",
+        },
+        { status: 400 }
+      );
     }
 
     await prisma.staff.delete({ where: { id } });

@@ -6,9 +6,9 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import PromoCodeModal from "@/components/Admin/PromoCodeModal";
 import SearchBar from "@/components/Admin/SearchBar";
-import DateRangePicker from "@/components/DateRangePicker";
 import Pagination from "@/components/Pagination";
 import { RouteLoader } from "@/components/RouteLoader";
+import ToggleButton from "@/components/Admin/ToggleButton";
 
 type PromoCode = {
   id: number;
@@ -44,6 +44,7 @@ export default function AdminPromoCodes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<PromoCode | null>(null);
   const [error, setError] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -54,6 +55,8 @@ export default function AdminPromoCodes() {
     }
   }, [session, status, router, page]);
 
+  // app/admin/promocodes/page.tsx
+  // Update the fetchPromoCodes function to include active filter
   const fetchPromoCodes = async (pageNum: number) => {
     setLoading(true);
     try {
@@ -63,6 +66,16 @@ export default function AdminPromoCodes() {
       if (search) url.searchParams.append("search", search);
       if (dateFrom) url.searchParams.append("dateFrom", dateFrom);
       if (dateTo) url.searchParams.append("dateTo", dateTo);
+
+      // Add active filter based on search
+      if (search.includes("active:yes") || search.includes("active:true")) {
+        url.searchParams.append("active", "true");
+      } else if (
+        search.includes("active:no") ||
+        search.includes("active:false")
+      ) {
+        url.searchParams.append("active", "false");
+      }
 
       const res = await fetch(url.toString());
       if (!res.ok) throw new Error("Failed to load");
@@ -114,7 +127,7 @@ export default function AdminPromoCodes() {
       throw new Error(err.error || "Save failed");
     }
 
-    fetchPromoCodes(page); // Refetch current page
+    fetchPromoCodes(page);
     closeModal();
   };
 
@@ -124,152 +137,390 @@ export default function AdminPromoCodes() {
     fetchPromoCodes(page);
   };
 
+  const handleToggleAvailability = async (
+    id: number,
+    currentStatus: boolean
+  ) => {
+    setUpdatingStatus(id);
+
+    try {
+      const res = await fetch(`/api/admin/promocodes/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !currentStatus }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update status");
+
+      const updated = await res.json();
+
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              promos: prev.promos.map((promo) =>
+                promo.id === id ? { ...promo, active: updated.active } : promo
+              ),
+            }
+          : null
+      );
+    } catch (err) {
+      console.error("Update failed:", err);
+      setError("Failed to update promo code status");
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearch("");
+    setDateFrom("");
+    setDateTo("");
+  };
+
   if (status === "loading" || loading) {
-    <RouteLoader />;
+    return <RouteLoader />;
   }
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Promo Code Management</h1>
-        <button
-          onClick={openCreate}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-        >
-          + Add Promo Code
-        </button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Promo Codes</h1>
+              <p className="text-slate-600 text-sm">
+                Manage discounts and promotions
+              </p>
+            </div>
+            <button
+              onClick={openCreate}
+              className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-indigo-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 text-sm font-medium whitespace-nowrap w-full sm:w-auto"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+              Add Promo Code
+            </button>
+          </div>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
+          {/* Filters */}
+          <div className="bg-white/70 backdrop-blur-sm border border-slate-200/70 rounded-2xl p-4 mb-6 space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <SearchBar
+                  onSearch={setSearch}
+                  placeholder="Search by code..."
+                  defaultValue={search}
+                />
+              </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 border rounded-lg mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 shadow-sm">
-        <div>
-          <SearchBar onSearch={setSearch} placeholder="Search by code..." />
-        </div>
-        <div className="col-span-2">
-          <DateRangePicker
-            value={{
-              startDate: dateFrom ? new Date(dateFrom) : null,
-              endDate: dateTo ? new Date(dateTo) : null,
-            }}
-            onChange={({ startDate, endDate }) => {
-              setDateFrom(startDate.toISOString().split("T")[0]);
-              setDateTo(endDate.toISOString().split("T")[0]);
-            }}
-          />
-        </div>
-      </div>
+              {/* Date Range Picker */}
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="From"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="To"
+                />
+              </div>
+            </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto bg-white border rounded-lg shadow">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Issue Date
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Code
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Discount
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Min Order
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Uses
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Expires
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Active
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {data?.promos.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                  No promo codes found.
-                </td>
-              </tr>
+            {/* Filter Actions */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {(search || dateFrom || dateTo) && (
+                <button
+                  onClick={clearFilters}
+                  className="text-sm text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded-lg transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
+
+              {/* Active/Inactive Filter Chips */}
+              <div className="flex gap-2 ml-auto">
+                <button
+                  onClick={() =>
+                    setSearch((prev) =>
+                      prev.includes("active:")
+                        ? prev.replace("active:", "")
+                        : "active:yes"
+                    )
+                  }
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    search.includes("active:yes")
+                      ? "bg-indigo-100 text-indigo-800 border border-indigo-200"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Active
+                </button>
+                <button
+                  onClick={() =>
+                    setSearch((prev) =>
+                      prev.includes("active:")
+                        ? prev.replace("active:", "")
+                        : "active:no"
+                    )
+                  }
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    search.includes("active:no")
+                      ? "bg-red-100 text-red-800 border border-red-200"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Inactive
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats - Mobile Responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white/70 backdrop-blur-sm border border-slate-200/70 rounded-xl p-4 text-center sm:text-left">
+              <div className="text-xs text-slate-600 mb-1">Total Codes</div>
+              <div className="text-xl font-bold text-slate-800">
+                {data?.totalCount || 0}
+              </div>
+            </div>
+            <div className="bg-white/70 backdrop-blur-sm border border-slate-200/70 rounded-xl p-4 text-center sm:text-left">
+              <div className="text-xs text-slate-600 mb-1">Active</div>
+              <div className="text-xl font-bold text-green-600">
+                {data?.promos.filter((p) => p.active).length || 0}
+              </div>
+            </div>
+            <div className="bg-white/70 backdrop-blur-sm border border-slate-200/70 rounded-xl p-4 text-center sm:text-left">
+              <div className="text-xs text-slate-600 mb-1">Usage</div>
+              <div className="text-xl font-bold text-indigo-600">
+                {data?.promos.reduce((acc, p) => acc + p.currentUses, 0) || 0}
+              </div>
+            </div>
+          </div>
+
+          {/* Promo Codes */}
+          <div className="bg-white/70 backdrop-blur-sm border border-slate-200/70 rounded-2xl overflow-hidden">
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                <p className="mt-4 text-slate-600">Loading promo codes...</p>
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center">
+                <div className="text-red-600">{error}</div>
+              </div>
+            ) : !data || data.promos.length === 0 ? (
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 text-slate-300">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-slate-700 mb-2">
+                  No promo codes found
+                </h3>
+                <p className="text-slate-500 text-sm">
+                  Create your first promo code to offer discounts
+                </p>
+              </div>
             ) : (
-              data?.promos.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm">
-                    {new Date(p.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm">{p.code}</td>
-                  <td className="px-4 py-3 text-sm">
-                    {p.discountPercent ? `${p.discountPercent}%` : ""}
-                    {p.discountAmount ? `£${p.discountAmount.toFixed(2)}` : ""}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {p.minOrderAmount ? `£${p.minOrderAmount.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {p.currentUses}/{p.maxUses ?? "∞"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {p.expiresAt
-                      ? new Date(p.expiresAt).toLocaleDateString()
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        p.active
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {p.active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm space-x-2">
-                    <button
-                      onClick={() => openEdit(p)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Code
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Discount
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Min Order
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Uses
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Expires
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {data.promos.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200"
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="font-mono text-sm font-bold text-slate-900">
+                            {p.code}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            {new Date(p.createdAt).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm font-medium text-slate-900">
+                            {p.discountPercent && (
+                              <span>{p.discountPercent}%</span>
+                            )}
+                            {p.discountAmount && (
+                              <span>£{p.discountAmount}</span>
+                            )}
+                            {p.discountPercent && p.discountAmount && (
+                              <span> or </span>
+                            )}
+                            {!p.discountPercent && !p.discountAmount && (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-slate-900">
+                            {p.minOrderAmount ? `£${p.minOrderAmount}` : "—"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-slate-900">
+                            {p.currentUses}/{p.maxUses ?? "∞"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-slate-900">
+                            {p.expiresAt
+                              ? new Date(p.expiresAt).toLocaleDateString()
+                              : "No expiry"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <ToggleButton
+                              value={p.active}
+                              onToggle={() =>
+                                handleToggleAvailability(p.id, p.active)
+                              }
+                              loading={updatingStatus === p.id}
+                            />
+                            <span
+                              className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${
+                                p.active
+                                  ? "bg-green-100 text-green-800 border border-green-200"
+                                  : "bg-red-100 text-red-800 border border-red-200"
+                              }`}
+                            >
+                              {p.active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openEdit(p)}
+                              className="text-blue-600 hover:text-blue-800 p-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                              aria-label="Edit promo code"
+                              disabled={updatingStatus !== null}
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDelete(p.id)}
+                              className="text-red-600 hover:text-red-800 p-1.5 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                              aria-label="Delete promo code"
+                              disabled={updatingStatus !== null}
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+
+          {/* Pagination */}
+          {data?.totalPages && data.totalPages > 1 && (
+            <div className="mt-6 flex justify-center">
+              <Pagination
+                page={page}
+                total={data.totalCount}
+                limit={limit}
+                onPageChange={setPage}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Modal */}
+        {isModalOpen && (
+          <PromoCodeModal
+            promo={editing}
+            onClose={closeModal}
+            onSubmit={handleSubmit}
+          />
+        )}
       </div>
-
-      {/* Pagination */}
-      {data?.totalPages && data.totalPages > 1 && (
-        <Pagination
-          page={data.currentPage}
-          total={data.totalCount}
-          limit={limit}
-          onPageChange={setPage}
-        />
-      )}
-
-      {/* Modal */}
-      {isModalOpen && (
-        <PromoCodeModal
-          promo={editing}
-          onClose={closeModal}
-          onSubmit={handleSubmit}
-        />
-      )}
     </div>
   );
 }

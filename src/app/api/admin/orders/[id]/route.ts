@@ -7,10 +7,10 @@ import { generateReceiptPdf } from "@/lib/generateReceiptPdf";
 
 // ✅ Use const object for runtime access
 const ALLOWED_STATUSES = {
-  accepted: "accepted",
-  ready: "ready",
-  delivered: "delivered",
-  rejected: "rejected",
+  ACCEPTED: "ACCEPTED",
+  READY: "READY",
+  DELIVERED: "DELIVERED",
+  REJECTED: "REJECTED",
 } as const;
 
 type Status = (typeof ALLOWED_STATUSES)[keyof typeof ALLOWED_STATUSES];
@@ -60,17 +60,17 @@ export async function PATCH(
     if (customer?.email) {
       // ✅ Use ALLOWED_STATUSES, not Status (which is a type)
       const subjectMap: Record<Status, string> = {
-        [ALLOWED_STATUSES.accepted]: `Your Order #${updatedOrder.id} Has Been Accepted!`,
-        [ALLOWED_STATUSES.ready]: `Your Order is Ready for ${updatedOrder.deliveryType}`,
-        [ALLOWED_STATUSES.delivered]: "Your Order Has Been Delivered",
-        [ALLOWED_STATUSES.rejected]: `Your Order #${updatedOrder.id} Was Rejected`,
+        [ALLOWED_STATUSES.ACCEPTED]: `Your Order #${updatedOrder.id} Has Been Accepted!`,
+        [ALLOWED_STATUSES.READY]: `Your Order is Ready for ${updatedOrder.deliveryType}`,
+        [ALLOWED_STATUSES.DELIVERED]: "Your Order Has Been Delivered",
+        [ALLOWED_STATUSES.REJECTED]: `Your Order #${updatedOrder.id} Was Rejected`,
       };
 
       const bodyMap: Record<Status, string> = {
-        [ALLOWED_STATUSES.accepted]: `Hi ${customer.name}, we've accepted your order.`,
-        [ALLOWED_STATUSES.ready]: `Great news! Your order is ready for pickup/delivery.`,
-        [ALLOWED_STATUSES.delivered]: `Your order has been delivered. Enjoy!`,
-        [ALLOWED_STATUSES.rejected]: `We're sorry, but your order #${updatedOrder.id} has been rejected.`,
+        [ALLOWED_STATUSES.ACCEPTED]: `Hi ${customer.name}, we've accepted your order.`,
+        [ALLOWED_STATUSES.READY]: `Great news! Your order is ready for pickup/delivery.`,
+        [ALLOWED_STATUSES.DELIVERED]: `Your order has been delivered. Enjoy!`,
+        [ALLOWED_STATUSES.REJECTED]: `We're sorry, but your order #${updatedOrder.id} has been rejected.`,
       };
 
       const subject = subjectMap[newStatus];
@@ -78,7 +78,7 @@ export async function PATCH(
 
       let attachments: any[] = [];
 
-      if (newStatus === ALLOWED_STATUSES.ready) {
+      if (newStatus === ALLOWED_STATUSES.READY) {
         const pdfBytes = await generateReceiptPdf(updatedOrder);
         attachments.push({
           filename: `receipt-order-${updatedOrder.id}.pdf`,

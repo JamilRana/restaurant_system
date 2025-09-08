@@ -29,7 +29,7 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({
   postcode,
   address,
 }) => {
-  const total = subTotal - discount + deliveryFee;
+  const total = subTotal - Number(discount || 0) + Number(deliveryFee || 0);
 
   return (
     <div className="bg-gray-100 p-6 rounded-lg shadow">
@@ -83,7 +83,7 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({
         {deliveryMode === "delivery" && (
           <div className="flex justify-between">
             <span>Delivery Fee:</span>
-            <span>£{deliveryFee.toFixed(2)}</span>
+            <span>£{Number(deliveryFee || 0).toFixed(2)}</span>
           </div>
         )}
       </div>

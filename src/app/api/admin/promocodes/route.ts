@@ -1,28 +1,7 @@
-// app/api/admin/promocodes/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-
-type ApiResponse = {
-  promos: {
-    id: number;
-    code: string;
-    discountPercent: number | null;
-    discountAmount: number | null;
-    minOrderAmount: number | null;
-    maxUses: number | null;
-    currentUses: number;
-    expiresAt: string | null;
-    active: boolean;
-    createdAt: string;
-  }[];
-  totalCount: number;
-  totalPages: number;
-  currentPage: number;
-};
-
-// app/api/admin/promocodes/route.ts
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -40,6 +19,7 @@ export async function GET(request: Request) {
   const dateTo = searchParams.get("dateTo")
     ? new Date(searchParams.get("dateTo")!)
     : null;
+  const activeStatus = searchParams.get("active"); // Add active filter
 
   const offset = (page - 1) * limit;
   const restaurantId = session.user.restaurantId;
@@ -47,10 +27,29 @@ export async function GET(request: Request) {
   try {
     const whereClause: any = { restaurantId };
 
+    // Add search filter
     if (search) {
-      whereClause.code = { contains: search, mode: "insensitive" };
+      // Check if search contains active: filter
+      if (search.toLowerCase().includes("active:")) {
+        const isActive =
+          search.toLowerCase().includes("active:yes") ||
+          search.toLowerCase().includes("active:true");
+        whereClause.active = isActive;
+      } else {
+        whereClause.code = { contains: search, mode: "insensitive" };
+      }
     }
 
+    // Add active filter from query param (higher priority)
+    if (activeStatus !== null) {
+      if (activeStatus === "true" || activeStatus === "yes") {
+        whereClause.active = true;
+      } else if (activeStatus === "false" || activeStatus === "no") {
+        whereClause.active = false;
+      }
+    }
+
+    // Add date filters
     if (dateFrom || dateTo) {
       whereClause.createdAt = {};
       if (dateFrom) whereClause.createdAt.gte = dateFrom;
@@ -58,7 +57,6 @@ export async function GET(request: Request) {
         whereClause.createdAt.lte = new Date(dateTo.setHours(23, 59, 59));
     }
 
-    // ✅ Debug: Log the where clause
     console.log("PromoCode WHERE:", whereClause);
 
     const [promos, totalCount] = await Promise.all([
@@ -71,7 +69,7 @@ export async function GET(request: Request) {
       prisma.promoCode.count({ where: whereClause }),
     ]);
 
-    console.log("Fetched promos:", promos.length); // ✅ Debug
+    console.log("Fetched promos:", promos.length);
 
     const totalPages = Math.ceil(totalCount / limit);
 
@@ -92,8 +90,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
   }
 }
-
-// app/api/admin/promocodes/route.ts
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);

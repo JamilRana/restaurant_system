@@ -3,41 +3,30 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import Pusher from "pusher";
-
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  useTLS: true,
-});
-
-const VALID_STATUSES = ["accepted", "preparing", "ready", "delivered"] as const;
-type OrderStatus = (typeof VALID_STATUSES)[number];
-
-function isValidStatus(status: string): status is OrderStatus {
-  return VALID_STATUSES.includes(status as OrderStatus);
-}
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || !["WAITER", "ADMIN"].includes(session.user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const { id } = await params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-  const { status }: { status: string } = await request.json();
+  const session = await getServerSession(authOptions);
+  if (!session || !["ADMIN", "WAITER", "KITCHEN"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  if (!status || !isValidStatus(status)) {
+  const { status } = await request.json();
+
+  if (
+    !status ||
+    !["ACCEPTED", "PREPARING", "READY", "DELIVERED", "REJECTED"].includes(
+      status
+    )
+  ) {
     return NextResponse.json(
       { error: "Invalid or missing status" },
       { status: 400 }
@@ -58,41 +47,43 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Prevent invalid transitions
-    const allowedTransitions: Record<string, string[]> = {
-      accepted: ["preparing", "ready", "delivered"],
-      preparing: ["ready", "delivered"],
-      ready: ["delivered"],
-      delivered: [],
-    };
-
-    if (!allowedTransitions[order.status]?.includes(status)) {
-      return NextResponse.json(
-        { error: `Cannot transition from '${order.status}' to '${status}'` },
-        { status: 400 }
-      );
-    }
-
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-      data: { status },
+      data: {
+        status,
+      },
       include: {
-        items: { include: { food: { include: { options: true } } } },
-        table: { select: { number: true } },
-        customer: { select: { name: true } },
+        items: { include: { food: true, foodOption: true } },
+        customer: { select: { name: true, email: true } },
+        currentTableFor: { select: { number: true } },
       },
     });
 
-    // 🚀 Real-time update
-    await pusher.trigger(
-      `restaurant-${order.restaurant.id}`,
-      "order-updated",
-      updatedOrder
-    );
+    // 🔥 Pusher: Broadcast
+    try {
+      const Pusher = require("pusher");
+      const pusher = new Pusher({
+        appId: process.env.PUSHER_APP_ID!,
+        key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
+        secret: process.env.PUSHER_SECRET!,
+        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+        useTLS: true,
+      });
+      await pusher.trigger(
+        `restaurant-${order.restaurant.id}`,
+        "order-updated",
+        updatedOrder
+      );
+    } catch (err) {
+      console.warn("Pusher trigger failed:", err);
+    }
 
     return NextResponse.json(updatedOrder);
   } catch (error) {
-    console.error("PATCH /api/waiter/orders/[id]", error);
-    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+    console.error("Update order status failed:", error);
+    return NextResponse.json(
+      { error: "Failed to update status" },
+      { status: 500 }
+    );
   }
 }

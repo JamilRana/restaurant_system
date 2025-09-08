@@ -23,19 +23,27 @@ interface BasketState {
   currentRestaurantId: number | null;
   promoCode: string;
   discountAmount: number;
-  appliedPromo:  { code: string; discountAmount: number } | null;
-  guestName: string;
-  guestEmail: string;
+  appliedPromo: { code: string; discountAmount: number } | null;
+  Name: string;
+  Phone: string;
+  Email: string;
 
-  setGuestInfo: (name: string, email: string) => void;
   setPromoCode: (code: string) => void;
+  setGuestInfo: (name: string, email: string, phone: string) => void;
+  setAppliedPromo: (
+    promo: { code: string; discountAmount: number } | null
+  ) => void;
   setDiscount: (amount: number) => void;
   clearPromo: () => void;
 
   // Actions
   addToBasket: (item: Omit<BasketItem, "quantity">) => void;
   removeFromBasket: (id: number, optionId: number | null) => void;
-  updateQuantity: (id: number, optionId: number | null, quantity: number) => void;
+  updateQuantity: (
+    id: number,
+    optionId: number | null,
+    quantity: number
+  ) => void;
   setItems: (items: BasketItem[]) => void;
   replaceBasket: (items: BasketItem[], restaurantId: number) => void;
   setDeliveryMode: (mode: "delivery" | "collection") => void;
@@ -61,13 +69,15 @@ export const useBasketStore = create<BasketState>()(
       promoCode: "",
       discountAmount: 0,
       appliedPromo: null,
-      guestName: "",
-      guestEmail: "",
+      Name: "",
+      Email: "",
+      Phone: "",
 
       addToBasket: (newItem) =>
         set((state) => {
           const existingIndex = state.basketItems.findIndex(
-            (item) => item.id === newItem.id && item.optionId === newItem.optionId
+            (item) =>
+              item.id === newItem.id && item.optionId === newItem.optionId
           );
           if (existingIndex !== -1) {
             const updated = [...state.basketItems];
@@ -81,7 +91,9 @@ export const useBasketStore = create<BasketState>()(
 
       removeFromBasket: (id, optionId) =>
         set((state) => {
-          const item = state.basketItems.find((i) => i.id === id && i.optionId === optionId);
+          const item = state.basketItems.find(
+            (i) => i.id === id && i.optionId === optionId
+          );
           if (!item) return state;
           if (item.quantity > 1) {
             return {
@@ -125,7 +137,8 @@ export const useBasketStore = create<BasketState>()(
           currentRestaurantId: restaurantId,
         })),
 
-      setGuestInfo: (name, email) => set({ guestName: name, guestEmail: email }),
+      setGuestInfo: (name, email, phone) =>
+        set({ Name: name, Email: email, Phone: phone }),
       setDeliveryMode: (mode) => set({ deliveryMode: mode }),
       setPostcode: (code) => set({ postcode: code }),
       setAddress: (addr) => set({ address: addr }),
@@ -150,9 +163,15 @@ export const useBasketStore = create<BasketState>()(
           address: "",
           deliveryFee: 0,
           currentRestaurantId: null,
+          promoCode: "",
+          appliedPromo: null,
+          discountAmount: 0,
         }),
-        setPromoCode: (code) => set({ promoCode: code }),
+      setPromoCode: (code) => set({ promoCode: code }),
       setDiscount: (amount) => set({ discountAmount: amount }),
+
+      setAppliedPromo: (appliedPromo) => set({ appliedPromo }),
+
       clearPromo: () =>
         set({
           promoCode: "",

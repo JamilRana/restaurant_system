@@ -20,7 +20,7 @@ const Cart: React.FC = () => {
   const total = subtotal + (orderNote ? 0 : 0); // deliveryFee will be dynamic
 
   return (
-    <div className="bg-white border rounded-lg p-4 shadow-sm text-sm ">
+    <div className="bg-white border rounded-lg p-4 shadow-sm text-sm">
       <div className="bg-green-600 text-white font-bold p-3 rounded flex items-center space-x-2 mb-4">
         <span>🛍️</span>
         <h2 className="text-lg">My Basket</h2>
@@ -35,9 +35,7 @@ const Cart: React.FC = () => {
             className="border-b pb-3 mb-3"
           >
             <div className="flex justify-between items-center">
-              <span className="text-green-600 font-bold">
-                £{item.price.toFixed(2)}
-              </span>
+              <span className="text-green-600 font-bold">£{item.price}</span>
               <button
                 onClick={() => removeFromBasket(item.id, item.optionId)}
                 className="text-gray-400 hover:text-red-500 text-xs"
@@ -99,9 +97,7 @@ const Cart: React.FC = () => {
       {/* Single Order Note */}
       {basketItems.length > 0 && (
         <div className="mt-4">
-          <label className="block text-sm font-bold mb-1">
-            Order Note (Optional)
-          </label>
+          <label className="block text-sm font-bold mb-1">Order Note</label>
           <textarea
             value={orderNote}
             onChange={(e) => setOrderNote(e.target.value)}

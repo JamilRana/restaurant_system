@@ -48,26 +48,31 @@ const CategorySection = ({
   const handleAddToBasket = (dish: any) => {
     const optionIndex = selectedOptions[dish.id] ?? 0;
     const selectedOption = dish.options?.[optionIndex];
-    const extraPrice = selectedOption ? selectedOption.price : 0;
-    const finalPrice = dish.price + extraPrice;
+
+    // ✅ Parse prices as numbers
+    // Convert dish.price and option.price to numbers
+    const basePrice = Number(dish.price) || 0;
+    const extraPrice = selectedOption ? Number(selectedOption.price) || 0 : 0;
+
+    // Now add them
+    const finalPrice = basePrice + extraPrice; // ← This should be a number
 
     useBasketStore.getState().addToBasket({
       id: dish.id,
       name: dish.name,
       description: dish.description,
       image: dish.image,
-      price: finalPrice,
+      price: finalPrice, // Already number
       option: selectedOption || undefined,
       optionId: selectedOption?.id || null,
     });
   };
-
   return (
-    <div className="border-b border-gray-200">
+    <div className="  ">
       {/* Toggle Button */}
       <button
         onClick={onToggle}
-        className="w-full text-left p-4 bg-black text-white font-bold flex justify-between items-center"
+        className="w-full text-left p-4 bg-black rounded-t-xs text-white font-bold flex justify-between items-center"
       >
         <span>{category}</span>
         <span>{expanded ? "▲" : "▼"}</span>
@@ -79,12 +84,22 @@ const CategorySection = ({
           {dishes.map((dish) => {
             const optionIndex = selectedOptions[dish.id] ?? 0;
             const selectedOption = dish.options?.[optionIndex];
-            const extraPrice = selectedOption ? selectedOption.price : 0;
-            const finalPrice = dish.price + extraPrice;
+            const basePrice = Number(dish.price) || 0;
+            const extraPrice = selectedOption
+              ? Number(selectedOption.price) || 0
+              : 0;
+            const finalPrice = basePrice + extraPrice;
+
+            console.log("Dish data:", {
+              name: dish.name,
+              price: dish.price,
+              optionPrice: selectedOption?.price,
+              finalPrice,
+            });
 
             return (
-              <div key={dish.id} className="p-4 border-b last:border-b-0">
-                <div className="flex flex-col sm:flex-row gap-3 items-start">
+              <div key={dish.id} className="p-4 border-b last:border-b-0 ">
+                <div className="flex flex-col sm:flex-row gap-3 items-start bg-red/30 backdrop-blur-md">
                   {/* Image */}
                   {dish.image && (
                     <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0">
@@ -134,7 +149,7 @@ const CategorySection = ({
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                             }`}
                           >
-                            {option.name} (+£{option.price.toFixed(2)})
+                            {option.name} (+£{option.price})
                           </button>
                         ))}
                       </div>

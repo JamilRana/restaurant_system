@@ -21,12 +21,10 @@ const CheckoutPage = () => {
     promoCode,
     discountAmount,
     appliedPromo,
-    guestName,
-    guestEmail,
-    setGuestInfo,
+    Name,
+    Email,
+    Phone,
     setDeliveryMode,
-    setPromoCode,
-    setDiscount,
     clearPromo,
   } = useBasketStore();
 
@@ -56,7 +54,7 @@ const CheckoutPage = () => {
       setDeliveryMode("collection");
     }
 
-    if (!session && !guestName && !guestEmail) {
+    if (!session && !Name && !Email && !Phone) {
       router.push("/Auth");
     }
   }, [
@@ -64,8 +62,9 @@ const CheckoutPage = () => {
     status,
     deliveryMode,
     setDeliveryMode,
-    guestName,
-    guestEmail,
+    Name,
+    Email,
+    Phone,
     router,
   ]);
 
@@ -128,8 +127,9 @@ const CheckoutPage = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: promoCode,
-          restaurantId: 1, // Replace with dynamic ID
+          restaurantId: 1,
           totalAmount: preDiscountTotal,
+          email: Email,
         }),
       });
 
@@ -139,10 +139,17 @@ const CheckoutPage = () => {
       }
 
       const data = await res.json();
-      setDiscount(data.discountAmount);
+
+      // ✅ Update BOTH appliedPromo AND discountAmount
+      const store = useBasketStore.getState();
+      store.setAppliedPromo({
+        code: data.code,
+        discountAmount: data.discountAmount,
+      });
+      store.setDiscount(data.discountAmount); // ✅ This triggers re-render
     } catch (error: any) {
       setPromoError(error.message);
-      clearPromo();
+      clearPromo(); // This also clears discountAmount
     } finally {
       setIsApplying(false);
     }
@@ -154,6 +161,10 @@ const CheckoutPage = () => {
     setErrors({ timeSlot: "", paymentMethod: "", address: "" });
 
     let hasError = false;
+    console.log("isProcessing:", isProcessing);
+    console.log("hasError:", hasError);
+    console.log("paymentMethod:", paymentMethod);
+    console.log("timeSlot:", timeSlot);
 
     if (!timeSlot) {
       setErrors((prev) => ({ ...prev, timeSlot: "Please select a time slot" }));
@@ -169,19 +180,20 @@ const CheckoutPage = () => {
     }
 
     if (deliveryMode === "delivery") {
-      if (!postcode || !address) {
-        setErrors((prev) => ({
-          ...prev,
-          address: "Please enter delivery address",
-        }));
-        hasError = true;
-      }
-      if (!session) {
-        setErrors((prev) => ({
-          ...prev,
-          address: "Login required for delivery",
-        }));
-        hasError = true;
+      if (deliveryMode === "delivery") {
+        if (!session) {
+          setErrors((prev) => ({
+            ...prev,
+            address: "Login required for delivery",
+          }));
+          hasError = true;
+        } else if (!postcode || !address) {
+          setErrors((prev) => ({
+            ...prev,
+            address: "Please enter delivery address",
+          }));
+          hasError = true;
+        }
       }
     }
 
@@ -197,9 +209,9 @@ const CheckoutPage = () => {
           body: JSON.stringify({
             totalAmount,
             deliveryType: deliveryMode === "delivery" ? "DELIVERY" : "PICKUP",
-            paymentStatus: "pending",
-            paymentMethod: "cash",
-            status: "placed",
+            paymentStatus: "PENDING",
+            paymentMethod: "CASH",
+            status: "PLACED",
             timeSlot,
             address: deliveryMode === "delivery" ? address : null,
             postcode: deliveryMode === "delivery" ? postcode : null,
@@ -209,14 +221,14 @@ const CheckoutPage = () => {
             deliveryFee,
             discountAmount,
             items: basketItems.map((item) => ({
-              foodId: item.id,
+              id: item.id, // ✅ matches `item.id`
               quantity: item.quantity,
-              price: item.price,
-              foodOptionId: item.optionId || null,
+              optionId: item.optionId || null, // ✅ matches `item.optionId`
             })),
-            isGuestOrder: !session,
-            guestName: !session ? guestName : null,
-            guestEmail: !session ? guestEmail : null,
+            isGuest: !session,
+            Name: !session ? Name : session.user?.name,
+            Email: !session ? Email : session.user?.email,
+            Phone: !session ? Phone : session.user?.phone,
           }),
         });
 
@@ -251,9 +263,10 @@ const CheckoutPage = () => {
             deliveryType: deliveryMode === "delivery" ? "DELIVERY" : "PICKUP",
             orderNote,
             promoCode: appliedPromo?.code || null,
-            isGuestOrder: !session,
-            guestName: !session ? guestName : null,
-            guestEmail: !session ? guestEmail : null,
+            isGuest: !session,
+            Name: !session ? Name : session.user?.name,
+            Email: !session ? Email : session.user?.email,
+            Phone: !session ? Phone : session.user?.phone,
           }),
         });
 
@@ -274,124 +287,227 @@ const CheckoutPage = () => {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Checkout</h1>
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6 text-center sm:text-left">
+        Checkout
+      </h1>
 
       {/* User Info */}
       <div className="mb-6">
         {session ? (
-          <div className="flex flex-col">
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
             <h2 className="text-lg font-semibold">
               Welcome Back, {session.user?.name}!
             </h2>
             <span className="text-gray-700">{session.user?.email}</span>
           </div>
         ) : (
-          <div className="mb-2 p-2 border rounded bg-yellow-50">
-            <h3 className="font-semibold">Guest : {guestEmail}</h3>
+          <div className="mb-4 p-3 border rounded bg-yellow-50 text-sm">
+            <h3 className="font-semibold">Guest: {Name}</h3>
+            <p>{Email}</p>
           </div>
         )}
-      </div>
 
-      {/* Checkout Body */}
-      <div className="flex flex-col md:flex-row gap-2">
-        <div className="flex-1 space-y-6">
-          {/* Time Slot */}
-          <div>
-            <label className="block mb-2 font-medium text-sm">
-              Choose your time slot
-            </label>
-            <select
-              value={timeSlot}
-              onChange={(e) => {
-                setTimeSlot(e.target.value);
-                setErrors((prev) => ({ ...prev, timeSlot: "" }));
-              }}
-              className="w-full border rounded px-3 py-2 text-sm"
-            >
-              <option value="">Select time</option>
-              {availableTimeSlots.length === 0 ? (
-                <option disabled>No available slots</option>
-              ) : (
-                availableTimeSlots.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))
-              )}
-            </select>
-            {errors.timeSlot && (
-              <p className="text-red-500 text-sm">{errors.timeSlot}</p>
-            )}
-          </div>
-
-          {/* Payment Method */}
-          <div>
-            <label className="block mb-2 font-medium text-sm">
-              Payment Information
-            </label>
-            <div className="space-y-2 text-sm">
-              {session && (
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="cash"
-                    checked={paymentMethod === "cash"}
-                    onChange={(e) => {
-                      setPaymentMethod(e.target.value);
-                      setErrors((prev) => ({ ...prev, paymentMethod: "" }));
-                    }}
-                  />
-                  Cash (Pay when order is received)
+        {/* Main Checkout Body */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left: Form */}
+          <div className="flex-1 min-w-0">
+            <div className="space-y-6">
+              {/* Time Slot */}
+              <div>
+                <label className="block mb-2 font-medium text-sm">
+                  Choose Time Slot
                 </label>
-              )}
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="payment"
-                  value="card"
-                  checked={paymentMethod === "card"}
+                <select
+                  value={timeSlot}
                   onChange={(e) => {
-                    setPaymentMethod(e.target.value);
-                    setErrors((prev) => ({ ...prev, paymentMethod: "" }));
+                    setTimeSlot(e.target.value);
+                    setErrors((prev) => ({ ...prev, timeSlot: "" }));
                   }}
-                />
-                Credit or Debit Card
-              </label>
-            </div>
-            {errors.paymentMethod && (
-              <p className="text-red-500 text-sm">{errors.paymentMethod}</p>
-            )}
-          </div>
-          {deliveryMode === "delivery" && address && postcode && (
-            <div className="mt-4">
-              <h3 className="font-semibold text-lg">Delivery Address</h3>
-              <p>{address}</p>
-              <p>Post Code: {postcode}</p>
-            </div>
-          )}
-          {/* Actions */}
-          <div className="flex gap-4">
-            <button
-              className="w-full bg-green-600 text-white font-bold rounded py-2"
-              onClick={handleCheckout}
-              disabled={isProcessing}
-            >
-              {isProcessing ? "Processing..." : "FINISH THE ORDER"}
-            </button>
-            <Link
-              href="/"
-              className="w-full bg-orange-500 text-center text-white font-bold rounded py-2"
-            >
-              ORDER MORE
-            </Link>
-          </div>
-        </div>
+                  className="w-full border rounded px-3 py-2 text-sm"
+                >
+                  <option value="">Select time</option>
+                  {availableTimeSlots.length === 0 ? (
+                    <option disabled>No available slots</option>
+                  ) : (
+                    availableTimeSlots.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {errors.timeSlot && (
+                  <p className="text-red-500 text-sm mt-1">{errors.timeSlot}</p>
+                )}
+              </div>
 
-        {/* Order Summary */}
-        <div className="w-full md:w-1/2">
-          <OrderDetailsWrapper />
+              {/* Promo Code */}
+              <div>
+                <label className="block mb-2 font-medium text-sm">
+                  Promo Code (Optional)
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter promo code"
+                    value={promoCode}
+                    onChange={(e) =>
+                      useBasketStore.getState().setPromoCode(e.target.value)
+                    }
+                    className="flex-1 border px-3 py-2 rounded text-sm"
+                  />
+                  <button
+                    onClick={handleApplyPromo}
+                    disabled={isApplying || isProcessing || !promoCode.trim()}
+                    className="bg-green-600 text-white font-bold rounded px-4 py-2 whitespace-nowrap"
+                  >
+                    {isApplying ? (
+                      <span className="flex items-center justify-center">
+                        <svg
+                          className="animate-spin h-5 w-5 mr-2"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                        Applying...
+                      </span>
+                    ) : (
+                      "Apply Promo"
+                    )}
+                  </button>
+                </div>
+
+                {/* Applied Promo */}
+                {appliedPromo && !promoError && (
+                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded text-sm flex items-center justify-between">
+                    <span className="text-green-800">
+                      ✅ {appliedPromo.code} applied (-£
+                      {appliedPromo.discountAmount.toFixed(2)})
+                    </span>
+                    <button
+                      onClick={() => {
+                        clearPromo();
+                        setPromoError("");
+                      }}
+                      className="text-red-500 hover:text-red-700 text-xs underline ml-2"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                {promoError && (
+                  <p className="text-red-500 text-sm mt-2">{promoError}</p>
+                )}
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="block mb-2 font-medium text-sm">
+                  Payment Method
+                </label>
+                <div className="space-y-2 text-sm">
+                  {session && (
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="cash"
+                        checked={paymentMethod === "cash"}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      Cash (Pay on delivery/pickup)
+                    </label>
+                  )}
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="card"
+                      checked={paymentMethod === "card"}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    />
+                    Credit/Debit Card
+                  </label>
+                </div>
+                {errors.paymentMethod && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.paymentMethod}
+                  </p>
+                )}
+              </div>
+
+              {/* Delivery Address */}
+              {deliveryMode === "delivery" && address && postcode && (
+                <div className="mt-4 p-3 bg-gray-50 rounded">
+                  <h3 className="font-semibold text-sm">Delivery Address</h3>
+                  <p className="text-sm">{address}</p>
+                  <p className="text-sm">Post Code: {postcode}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                <button
+                  onClick={handleCheckout}
+                  disabled={isProcessing}
+                  className="flex-1 bg-green-600 text-white font-bold rounded py-3"
+                >
+                  {isProcessing ? (
+                    <span className="flex items-center justify-center">
+                      <svg
+                        className="animate-spin h-5 w-5 mr-2"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    "FINISH ORDER"
+                  )}
+                </button>
+                <Link
+                  href="/"
+                  className="flex-1 bg-orange-500 text-white font-bold text-center rounded py-3"
+                >
+                  ORDER MORE
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Order Summary */}
+          <div className="w-full lg:w-96 mt-8 lg:mt-0">
+            <OrderDetailsWrapper />
+          </div>
         </div>
       </div>
     </div>

@@ -1,219 +1,300 @@
 // app/admin/finance/salary/page.tsx
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { StaffDuePayment, SalaryPayment } from "@/types";
-import { RouteLoader } from "@/components/RouteLoader";
 import { useRouter } from "next/navigation";
+import { endOfWeek, format, startOfWeek } from "date-fns";
+import { calculateSalaryDue } from "./calculate";
+import { RouteLoader } from "@/components/RouteLoader";
+import PaymentHistory from "./components/PaymentHistory";
+import DueStaffTable from "./components/DueStaffTable";
+import RecordPaymentModal from "./components/RecordPaymentModal";
+
+import { ApiStaff, SalaryPayment } from "@/types"; // ✅ Use shared types
+import CSVExportButton from "@/components/CSVExportButton";
+import TimeEntryModal from "./components/TimeEntryModal";
 
 export default function SalaryPayments() {
   const { data: session, status } = useSession();
-  const [payments, setPayments] = useState<SalaryPayment[]>([]);
-  const [dueStaff, setDueStaff] = useState<StaffDuePayment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [paymentForm, setPaymentForm] = useState({
-    staffId: "",
-    amount: "",
-    notes: "",
-  });
-  const [successMessage, setSuccessMessage] = useState("");
   const router = useRouter();
+  const [staffList, setStaffList] = useState<ApiStaff[]>([]);
+  const [payments, setPayments] = useState<SalaryPayment[]>([]); // ✅ Correct type
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<
+    (ApiStaff & { due: number }) | null
+  >(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (status === "loading") return;
-    if (!session || session.user.role !== "ADMIN") {
-      router.push("/");
-    }
-    fetchData();
-  }, [session, status]);
+  const [payPeriod, setPayPeriod] = useState({
+    start: format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd"),
+    end: format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd"),
+  });
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [paymentsRes, dueRes] = await Promise.all([
+      const [staffRes, paymentsRes] = await Promise.all([
+        fetch("/api/admin/staff").then((r) => r.json()),
         fetch("/api/admin/expenses/salary/history").then((r) => r.json()),
-        fetch("/api/admin/expenses/salary/due").then((r) => r.json()),
       ]);
-      setPayments(paymentsRes);
-      setDueStaff(dueRes);
+
+      // ✅ Ensure we extract staff array correctly
+      const staffArray = Array.isArray(staffRes) ? staffRes : staffRes.staff;
+      setStaffList(staffArray.filter((s: ApiStaff) => s.active));
+
+      // ✅ payments already match SalaryPayment type
+      setPayments(Array.isArray(paymentsRes) ? paymentsRes : []);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch data", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePaymentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!paymentForm.staffId || !paymentForm.amount) {
-      alert("Please select staff and enter amount");
-      return;
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session || session.user.role !== "ADMIN") {
+      router.push("/");
+    } else {
+      fetchData();
     }
+  }, [session, status, router]);
 
+  const handlePaymentSubmit = async ({
+    amount,
+    notes,
+    hours,
+    overtimeHours,
+  }: {
+    amount: number;
+    notes: string;
+    hours: number;
+    overtimeHours?: number;
+  }) => {
+    if (!selectedStaff) return;
+
+    setSubmitting(true);
     try {
-      const response = await fetch("/api/admin/expenses/salary", {
+      const res = await fetch("/api/admin/expenses/salary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          staffId: parseInt(paymentForm.staffId),
-          amount: parseFloat(paymentForm.amount),
-          notes: paymentForm.notes,
+          staffId: selectedStaff.id,
+          amount,
+          notes: [
+            notes,
+            `Worked: ${hours}h regular`,
+            overtimeHours ? `+ ${overtimeHours}h overtime` : "",
+          ]
+            .filter(Boolean)
+            .join(" | "),
         }),
       });
 
-      if (response.ok) {
-        setSuccessMessage("Payment recorded successfully!");
-        setPaymentForm({ staffId: "", amount: "", notes: "" });
-        setTimeout(() => setSuccessMessage(""), 3000);
-        fetchData(); // Refresh data
+      if (res.ok) {
+        setIsModalOpen(false);
+        setSelectedStaff(null);
+        await fetchData();
       } else {
-        const error = await response.json();
+        const error = await res.json();
         alert(`Error: ${error.error}`);
       }
     } catch (err) {
-      console.error(err);
-      alert("Failed to record payment");
+      alert("Failed to record payment.");
+    } finally {
+      setSubmitting(false);
     }
   };
+  if (status === "loading" || loading) return <RouteLoader />;
 
-  if (status === "loading" || loading) {
-    <RouteLoader />;
-  }
+  const start = new Date(payPeriod.start);
+  const end = new Date(payPeriod.end);
+
+  const dueStaff = staffList
+    .map((staff) => {
+      const staffPayments = payments.filter((p) => p.staffId === staff.id);
+      return {
+        ...staff,
+        ...calculateSalaryDue(staff, staffPayments, start, end),
+      };
+    })
+    .filter((s) => s.due > 0);
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Salary Payments</h1>
+    <div className="p-6 max-w-7xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Salary Payments</h1>
+        <p className="text-gray-600">
+          Manage weekly payroll and track staff compensation
+        </p>
+      </div>
 
-      {/* Payment Form */}
-      <section className="mb-8 p-6 bg-gray-50 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4">Record Salary Payment</h2>
-        {successMessage && (
-          <div className="bg-green-100 text-green-700 p-3 mb-4 rounded">
-            {successMessage}
-          </div>
-        )}
-        <form onSubmit={handlePaymentSubmit} className="space-y-4">
+      {/* Pay Period */}
+      <div className="bg-white p-6 rounded-xl shadow">
+        <h2 className="text-lg font-semibold mb-4">Current Pay Period</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
           <div>
-            <label className="block mb-1">Staff *</label>
-            <select
-              value={paymentForm.staffId}
-              onChange={(e) =>
-                setPaymentForm({ ...paymentForm, staffId: e.target.value })
-              }
-              className="w-full p-2 border rounded"
-              required
-            >
-              <option value="">Select staff member</option>
-              {dueStaff.map((staff) => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name} ({staff.role}) - Due: £{staff.due}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block mb-1">Amount (£) *</label>
+            <label className="block text-sm font-medium text-gray-700">
+              From
+            </label>
             <input
-              type="number"
-              step="0.01"
-              value={paymentForm.amount}
+              type="date"
+              value={payPeriod.start}
               onChange={(e) =>
-                setPaymentForm({ ...paymentForm, amount: e.target.value })
+                setPayPeriod({ ...payPeriod, start: e.target.value })
               }
-              className="w-full p-2 border rounded"
-              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block mb-1">Notes</label>
-            <textarea
-              value={paymentForm.notes}
+            <label className="block text-sm font-medium text-gray-700">
+              To
+            </label>
+            <input
+              type="date"
+              value={payPeriod.end}
               onChange={(e) =>
-                setPaymentForm({ ...paymentForm, notes: e.target.value })
+                setPayPeriod({ ...payPeriod, end: e.target.value })
               }
-              className="w-full p-2 border rounded"
-              rows={3}
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          <button
-            type="submit"
-            className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700"
-          >
-            Record Payment
-          </button>
-        </form>
-      </section>
+        </div>
+      </div>
 
-      {/* Due Payments */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Staff Due Payments</h2>
-        {dueStaff.length === 0 ? (
-          <div className="bg-green-100 text-green-700 p-4 rounded">
-            All staff are paid up to date. Great job!
-          </div>
-        ) : (
-          <table className="min-w-full bg-white border rounded">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-2">Name</th>
-                <th className="px-4 py-2">Role</th>
-                <th className="px-4 py-2">Expected</th>
-                <th className="px-4 py-2">Paid</th>
-                <th className="px-4 py-2">Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dueStaff.map((s) => (
-                <tr key={s.id} className="border-t">
-                  <td className="px-4 py-2 font-medium">{s.name}</td>
-                  <td className="px-4 py-2">{s.role}</td>
-                  <td className="px-4 py-2">£{s.expected.toFixed(2)}</td>
-                  <td className="px-4 py-2">£{s.paid.toFixed(2)}</td>
-                  <td className="px-4 py-2 font-bold text-red-600">
-                    £{s.due.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      {/* Payment History */}
+      {/* Due Staff */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Payment History</h2>
-        <table className="min-w-full bg-white border rounded">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2">Staff</th>
-              <th className="px-4 py-2">Role</th>
-              <th className="px-4 py-2">Amount</th>
-              <th className="px-4 py-2">Date</th>
-              <th className="px-4 py-2">Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
-                  No salary payments recorded yet.
-                </td>
-              </tr>
-            ) : (
-              payments.map((p) => (
-                <tr key={p.id} className="border-t">
-                  <td className="px-4 py-2 font-medium">{p.staffName}</td>
-                  <td className="px-4 py-2">{p.role}</td>
-                  <td className="px-4 py-2 font-bold">
-                    £{p.amount.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2">{p.date}</td>
-                  <td className="px-4 py-2 text-sm text-gray-600">{p.notes}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          Payments Due ({dueStaff.length})
+        </h2>
+        // Inside your return statement
+        <DueStaffTable
+          staff={dueStaff}
+          onPayClick={(staff) => {
+            setSelectedStaff(staff);
+            setIsTimeModalOpen(true); // Opens TimeEntryModal
+          }}
+          loading={false}
+        />
       </section>
+
+      {/* History */}
+      <section>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Recent Payments
+          </h2>
+          <CSVExportButton
+            data={payments.map((p) => {
+              const workedMatch = p.notes?.match(/Worked:\s*(\d+\.?\d*)h/);
+              const otMatch = p.notes?.match(/\+\s*(\d+\.?\d*)h\s+overtime/);
+              return {
+                Staff: p.staffName,
+                Role: p.role,
+                Amount: `£${p.amount}`,
+                Date: p.date,
+                "Regular Hours": workedMatch ? workedMatch[1] : "0",
+                "Overtime Hours": otMatch ? otMatch[1] : "0",
+                Notes: p.notes || "",
+              };
+            })}
+            headers={[
+              { label: "Staff", key: "Staff" },
+              { label: "Role", key: "Role" },
+              { label: "Amount", key: "Amount" },
+              { label: "Date", key: "Date" },
+              { label: "Regular Hours", key: "Regular Hours" },
+              { label: "Overtime Hours", key: "Overtime Hours" },
+              { label: "Notes", key: "Notes" },
+            ]}
+            filename={`salary-payments-${
+              new Date().toISOString().split("T")[0]
+            }.csv`}
+          />
+        </div>
+        <PaymentHistory payments={payments} limit={10} loading={false} />
+      </section>
+
+      {/* Modal */}
+      {/* Modals */}
+      {selectedStaff && (
+        <>
+          <RecordPaymentModal
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedStaff(null);
+            }}
+            staff={selectedStaff}
+            onSubmit={handlePaymentSubmit}
+            loading={submitting}
+          />
+          // Inside your `onSubmit` for TimeEntryModal
+          <TimeEntryModal
+            isOpen={isTimeModalOpen}
+            onClose={() => {
+              setIsTimeModalOpen(false);
+              setSelectedStaff(null);
+            }}
+            staff={selectedStaff}
+            onSubmit={async ({
+              totalHours,
+              totalOvertimeHours,
+              hourlyRate,
+              overtimeRate,
+              totalAmount,
+              entries,
+              notes,
+            }) => {
+              setSubmitting(true);
+              try {
+                const response = await fetch("/api/admin/expenses/salary", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    staffId: selectedStaff.id,
+                    amount: totalAmount,
+                    notes: [
+                      notes,
+                      `Time Entry: ${totalHours}h reg, ${totalOvertimeHours}h OT`,
+                      `Rate: £${hourlyRate}/hr, OT: ${overtimeRate}x`,
+                      entries
+                        .filter(
+                          (e) =>
+                            parseFloat(e.hours) > 0 ||
+                            parseFloat(e.overtimeHours) > 0
+                        )
+                        .map(
+                          (e) =>
+                            `${e.date}: ${e.hours}h + ${e.overtimeHours}h OT`
+                        )
+                        .join("; "),
+                    ]
+                      .filter(Boolean)
+                      .join(" | "),
+                  }),
+                });
+
+                if (response.ok) {
+                  setIsTimeModalOpen(false);
+                  setSelectedStaff(null);
+                  await fetchData(); // Refresh due/paid
+                } else {
+                  const error = await response.json();
+                  alert(`Error: ${error.error}`);
+                }
+              } catch (err) {
+                alert("Failed to record payment.");
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            loading={submitting}
+          />
+        </>
+      )}
     </div>
   );
 }

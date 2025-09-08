@@ -1,19 +1,14 @@
 // components/RouteLoader.tsx
-"use client";
-
-import { usePathname } from "next/navigation";
 import { useLoading } from "@/context/LoadingContext";
-import { useEffect } from "react";
 
 export function RouteLoader() {
-  const pathname = usePathname();
-  const { showLoader, hideLoader } = useLoading();
+  const { loading } = useLoading();
 
-  useEffect(() => {
-    showLoader();
-    const timeout = setTimeout(() => hideLoader(), 500); // Simulate load
-    return () => clearTimeout(timeout);
-  }, [pathname]);
+  if (!loading) return null;
 
-  return null;
+  return (
+    <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+      <div className="animate-spin h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+    </div>
+  );
 }

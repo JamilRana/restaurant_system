@@ -1,4 +1,4 @@
-// schema.prisma
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -10,20 +10,21 @@ datasource db {
 }
 
 // ========== ENUMS ==========
+
 enum UserRole {
   ADMIN
   CUSTOMER
-  KITCHEN
-  WAITER
+  STAFF
+  OWNER
 }
 
 enum OrderStatus {
-  placed
-  accepted
-  rejected
-  preparing
-  ready
-  delivered
+  PLACED
+  ACCEPTED
+  REJECTED
+  PREPARING
+  READY
+  DELIVERED
 }
 
 enum DeliveryType {
@@ -40,6 +41,7 @@ enum TableStatus {
 }
 
 enum ReservationStatus {
+  PENDING
   CONFIRMED
   CANCELLED
   COMPLETED
@@ -74,10 +76,31 @@ enum ExpenseCategory {
   OTHER
 }
 
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  STRIPE
+  OTHER
+}
+
+enum NotificationType {
+  ORDER
+  RESERVATION
+  PROMO
+  SYSTEM
+}
+
 // ========== MODELS ==========
 
 model User {
-  id        Int       @id @default(autoincrement()) 
+  id        Int       @id @default(autoincrement())
   email     String    @unique
   password  String
   role      UserRole  @default(CUSTOMER)
@@ -85,15 +108,14 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  // Relations
-  customer   Customer? // One-to-one with Customer
-  restaurant Restaurant? // One-to-one with Restaurant (admin)
-  createdOrders Order[] @relation("OrderCreatedBy")
-  staff         Staff?   
-
+  active Boolean   @default(true)
+  // Relation fields (inverse only)
+  customer   Customer?   @relation("UserCustomer") // ← no fields/references
+  restaurant Restaurant? @relation("UserRestaurant")
+  createdOrders Order[]  @relation("OrderCreatedBy")
+  staff        Staff?
   passwordResetToken PasswordResetToken?
-  notifications      Notification[] // Inverse
-  usageHistory       UserPromoUsage[]
+  notifications      Notification[]
 }
 
 model PasswordResetToken {
@@ -106,23 +128,33 @@ model PasswordResetToken {
 }
 
 model Customer {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   name      String?
   phone     String?
-  email     String   @unique
+  email     String?  @unique
   address   String?
   postcode  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  totalSpent Float @default(0)
-  orderCount Int   @default(0)
+  totalSpent Decimal @default(0) @db.Decimal(12, 2)
+  orderCount Int     @default(0)
+  isGuest    Boolean @default(false)
 
-  userId  Int?     @unique // ✅ Added @unique
-  user    User?    @relation(fields: [userId], references: [id])
-  orders  Order[]
-  reviews Review[]
+  userId Int?  @unique
+  user   User? @relation("UserCustomer", fields: [userId], references: [id], onDelete: SetNull)
+
+  orders       Order[]
+  reviews      Review[]
+  reservations Reservation[] @relation("CustomerReservations")
+  usageHistory       UserPromoUsage[]
+
+  @@index([email])
+  @@index([createdAt])
+  @@index([deletedAt])
 }
+
 
 model Restaurant {
   id             Int      @id @default(autoincrement())
@@ -136,7 +168,7 @@ model Restaurant {
   updatedAt      DateTime @updatedAt
 
   userId Int?  @unique
-  user   User? @relation(fields: [userId], references: [id])
+  user   User? @relation("UserRestaurant", fields: [userId], references: [id], onDelete: SetNull)
 
   foods           Food[]
   orders          Order[]
@@ -144,11 +176,12 @@ model Restaurant {
   deliveryZones   DeliveryZone[]
   reviews         Review[]
   promoCodes      PromoCode[]
-  kitchenStations KitchenStation[]
   staff           Staff[]
   expenses        Expense[]
-  table           Table[]
-  reservation     Reservation[]
+  tables          Table[]
+  reservations    Reservation[]
+
+  @@index([id])
 }
 
 model Category {
@@ -157,26 +190,27 @@ model Category {
   image     String?
   createdAt DateTime @default(now())
 
-  // Relations
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
   foods        Food[]
+  available       Boolean   @default(true)
 
-  @@unique([name, restaurantId], name: "Category_name_restaurantId_key")
+  @@unique([name, restaurantId])
+  @@index([restaurantId])
 }
 
 model Food {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   name            String
   description     String?
-  price           Float
+  price           Decimal   @db.Decimal(10, 2)
   image           String?
-  available       Boolean  @default(true)
-  prepTimeMinutes Int      @default(15)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  available       Boolean   @default(true)
+  prepTimeMinutes Int       @default(15)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
-  // Relations
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
 
@@ -186,161 +220,187 @@ model Food {
   options FoodOption[]
   items   OrderItem[]
 
-  stationId      Int?
-  kitchenStation KitchenStation? @relation(fields: [stationId], references: [id])
-
-  @@unique([name, restaurantId], name: "Food_name_restaurantId_key")
+  @@unique([name, restaurantId])
+  @@index([categoryId])
+  @@index([restaurantId])
+  @@index([available])
+  @@index([deletedAt])
 }
 
 model FoodOption {
   id         Int         @id @default(autoincrement())
   name       String
-  price      Float
+  price      Decimal     @db.Decimal(10, 2)
   foodId     Int
   food       Food        @relation(fields: [foodId], references: [id])
-  orderItems OrderItem[] // Inverse
+  orderItems OrderItem[]
+
+  @@index([foodId])
 }
 
 model Order {
-  id                   Int          @id @default(autoincrement())
-  totalAmount          Float
-  paymentStatus        String       @default("pending")
-  paymentMethod        String?
-  status               OrderStatus  @default(placed)
+  id                   Int            @id @default(autoincrement())
+  totalAmount          Decimal        @db.Decimal(10, 2)
+  finalAmount          Decimal?       @db.Decimal(10, 2)
+  discountAmount       Decimal?       @default(0) @db.Decimal(10, 2)
+
+  promoCodeId Int?
+  promoCode   PromoCode? @relation(fields: [promoCodeId], references: [id])
+
+  paymentStatus        PaymentStatus  @default(PENDING)
+  paymentMethod        PaymentMethod?
+  status               OrderStatus    @default(PLACED)
   deliveryType         DeliveryType
   timeSlot             String?
   orderNote            String?
-  postcode             String?
   address              String?
+  postcode             String?
   expectedDeliveryTime String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
-  // Relations
   customerId Int
   customer   Customer @relation(fields: [customerId], references: [id])
-
-  guestName    String?
-  guestEmail   String?
-  isGuestOrder Boolean @default(false)
 
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
-  items         OrderItem[]
-  notifications Notification[]
+  items OrderItem[]
 
-  // Stripe
+  createdById Int?
+  createdBy   User? @relation("OrderCreatedBy", fields: [createdById], references: [id])
+
+  currentTableFor Table? @relation("CurrentOrder")
+
+  review Review?
+
   stripeSessionId     String? @unique
   stripeCustomerId    String?
   stripePaymentIntent String? @unique
 
-  finalAmount    Float?
-  discountAmount Float?  @default(0)
-  promoCode      String?
+  notifications     Notification[]
+  promoUsageRecords UserPromoUsage[]
 
-  review Review?
-
-  createdById Int?
-  createdBy  User? @relation("OrderCreatedBy", fields: [createdById], references: [id])
-
-  // ✅ New: Optional table link
-  tableId Int?
-  table   Table?  @relation("TableOrders", fields: [tableId], references: [id])
-
-  // This connects back to Table.currentOrder
-  currentOrderFor Table? @relation("CurrentOrder")
+  
 
   @@index([customerId])
   @@index([restaurantId])
   @@index([status])
   @@index([createdAt])
-  @@index([tableId])
+  @@index([status, restaurantId])
+  @@index([stripeSessionId])
 }
 
 model OrderItem {
-  id       Int   @id @default(autoincrement())
+  id       Int      @id @default(autoincrement())
   quantity Int
-  price    Float
-  orderId  Int
-  order    Order @relation(fields: [orderId], references: [id])
-  foodId   Int
-  food     Food  @relation(fields: [foodId], references: [id])
-  notes        String?
-  addedAt      DateTime @default(now()) 
+  price    Decimal  @db.Decimal(10, 2)
+  notes    String?
+  addedAt  DateTime @default(now())
+
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id])
+
+  foodId Int
+  food   Food @relation(fields: [foodId], references: [id])
 
   foodOptionId Int?
   foodOption   FoodOption? @relation(fields: [foodOptionId], references: [id])
 
   @@index([orderId])
+  @@index([foodId])
   @@index([addedAt])
 }
 
 model DeliveryZone {
   id           Int        @id @default(autoincrement())
   postcode     String
-  deliveryFee  Float
+  deliveryFee  Decimal    @db.Decimal(10, 2)
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
-  @@unique([postcode, restaurantId], name: "DeliveryZone_postcode_restaurantId_key")
+  @@unique([postcode, restaurantId])
   @@index([postcode])
+  @@index([restaurantId])
 }
 
 model Table {
-  id             Int        @id @default(autoincrement())
-  number         String     @unique
-  capacity       Int        @default(4)
-  location       String?
-  status         TableStatus @default(AVAILABLE)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id        Int         @id @default(autoincrement())
+  number    String      
+  capacity  Int         @default(4)
+  location  String?
+  status    TableStatus @default(AVAILABLE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
 
-  // Relations
-  restaurantId   Int
-  restaurant     Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
-  // ✅ One active order at a time
-  currentOrderId Int? @unique  // ✅ Added @unique
+  currentOrderId Int?   @unique
   currentOrder   Order? @relation("CurrentOrder", fields: [currentOrderId], references: [id])
 
-  // ✅ All orders ever placed at this table
-  orders         Order[]    @relation("TableOrders")
-  reservation    Reservation[]
+  reservations ReservationTable[]
 
+  @@unique([number, restaurantId])
 
   @@index([restaurantId])
   @@index([status])
   @@index([currentOrderId])
+  @@index([deletedAt])
 }
-model Reservation {
-  id         Int                 @id @default(autoincrement())
-  name       String
-  phone      String
-  email      String?
-  guests     Int
-  date       DateTime
-  duration   Int       @default(120)
-  notes      String?
-  status     ReservationStatus     @default(CONFIRMED)
-  createdAt  DateTime  @default(now())
 
-  tableId    Int
-  table      Table     @relation(fields: [tableId], references: [id])
+model Reservation {
+  id        Int               @id @default(autoincrement())
+  name      String
+  phone     String
+  email     String?
+  guests    Int
+  startsAt  DateTime 
+  duration  Int               @default(90)
+  notes     String?
+  status    ReservationStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  deletedAt DateTime?
+
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  customerId Int?
+  customer   Customer? @relation("CustomerReservations", fields: [customerId], references: [id])
+
+  tables ReservationTable[]
+
+  @@index([restaurantId])
+  @@index([startsAt])
+  @@index([status])
+  @@index([customerId])
+  @@index([deletedAt])
+}
+
+model ReservationTable {
+  id            Int         @id @default(autoincrement())
+  reservationId Int
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+  tableId       Int
+  table         Table       @relation(fields: [tableId], references: [id])
+  assignedAt    DateTime    @default(now())
+
+  @@unique([reservationId, tableId])
+  @@index([reservationId])
+  @@index([tableId])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  message   String
-  type      String
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          Int              @id @default(autoincrement())
+  message     String
+  type        NotificationType
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  redirectUrl String?
 
-  // Optional: who the notification is for
   userId Int?
-  user   User? @relation(fields: [userId], references: [id])
+user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   orderId Int?
   order   Order? @relation(fields: [orderId], references: [id])
@@ -355,7 +415,6 @@ model Review {
   comment   String?
   createdAt DateTime @default(now())
 
-  // Relations
   orderId Int   @unique
   order   Order @relation(fields: [orderId], references: [id])
 
@@ -364,99 +423,103 @@ model Review {
 
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([customerId])
+  @@index([restaurantId])
+  @@index([createdAt])
 }
 
 model PromoCode {
   id              Int       @id @default(autoincrement())
   code            String    @unique
-  discountPercent Float?
-  discountAmount  Float?
-  minOrderAmount  Float?
+  discountPercent Decimal?  @db.Decimal(5, 2)
+  discountAmount  Decimal?  @db.Decimal(10, 2)
+  minOrderAmount  Decimal?  @db.Decimal(10, 2)
   maxUses         Int?
+  maxUsesPerUser  Int?
   currentUses     Int       @default(0)
   expiresAt       DateTime?
   active          Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  // Optional: per restaurant
   restaurantId Int?
-  restaurant   Restaurant?      @relation(fields: [restaurantId], references: [id])
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+
   usageRecords UserPromoUsage[]
+  orders       Order[]  // ✅ added opposite side
 
   @@index([code])
   @@index([active])
+  @@index([restaurantId])
+  @@index([expiresAt])
 }
 
 model UserPromoUsage {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  promoCodeId Int
-  usedAt      DateTime @default(now())
+  id           Int       @id @default(autoincrement())
+  customerId   Int
+  customer     Customer  @relation(fields: [customerId], references: [id])
+  promoCodeId  Int
+  promoCode    PromoCode @relation(fields: [promoCodeId], references: [id])
+  orderId      Int?
+  order        Order?    @relation(fields: [orderId], references: [id])
+  usedAt       DateTime  @default(now())
 
-  // Relations
-  user      User      @relation(fields: [userId], references: [id])
-  promoCode PromoCode @relation(fields: [promoCodeId], references: [id])
-
-  @@unique([userId, promoCodeId])
+  @@index([customerId])
+  @@index([promoCodeId])
+  @@index([customerId, promoCodeId])
+  @@index([usedAt])
 }
 
-model KitchenStation {
-  id           Int        @id @default(autoincrement())
-  name         String
-  color        String?
-  restaurantId Int
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
-  foods        Food[]
-}
 
 model Staff {
-  id         Int       @id @default(autoincrement())
-  name       String
-  role       StaffRole
-  email      String?   @unique
-  phone      String?
-  hireDate   DateTime  @default(now())
-  salary     Float?
-  hourlyRate Float? // if not salaried
-  active     Boolean   @default(true)
-  notes      String?
-  updatedAt  DateTime  @updatedAt
+  id           Int          @id @default(autoincrement())
+  name         String
+  role         StaffRole
+  email        String?      @unique
+  phone        String?
+  hireDate     DateTime     @default(now())
+  salary       Decimal?     @db.Decimal(10, 2)
+  hourlyRate   Decimal?     @db.Decimal(10, 2)
+  salaryPeriod SalaryPeriod @default(HOURLY)
+  active       Boolean      @default(true)
+  notes        String?
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
 
-  // Relations
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
-  salaryPeriod SalaryPeriod? @default(HOURLY)
-  expenses     Expense[] // Expenses assigned to this staff (e.g., salary, travel)
-
-  userId  Int?     @unique // ✅ Added @unique
-  user    User?    @relation(fields: [userId], references: [id])
+  expenses Expense[]
+  userId   Int?      @unique
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
   @@index([role])
+  @@index([email])
+  @@index([deletedAt])
 }
 
 model Expense {
   id          Int             @id @default(autoincrement())
-  description String // e.g., "Monthly electricity bill"
+  description String?
   category    ExpenseCategory
-  amount      Float
+  amount      Decimal         @db.Decimal(10, 2)
   date        DateTime        @default(now())
-  receiptPath String? // Optional: upload receipt
+  receiptPath String?
   recurring   Boolean         @default(false)
   notes       String?
   updatedAt   DateTime        @updatedAt
 
-  // Relations
   restaurantId Int
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
-  staffId Int? // If related to staff (e.g., salary, travel)
+  staffId Int?
   staff   Staff? @relation(fields: [staffId], references: [id])
 
   @@index([category])
   @@index([date])
   @@index([staffId])
   @@index([category, date])
+  @@index([restaurantId])
 }

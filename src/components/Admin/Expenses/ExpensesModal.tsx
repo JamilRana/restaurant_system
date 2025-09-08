@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { ExpenseFormValues } from "@/types"; // Make sure this is your correct type
+import type { ExpenseFormValues } from "@/types";
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -12,15 +12,14 @@ interface ExpenseModalProps {
   staffList: { id: number; name: string; role: string }[];
 }
 
-// ✅ Define a form-specific type — do NOT use Omit if it leaves required fields
 type FormValues = {
   description: string;
-  category: ExpenseFormValues["category"]; // e.g., ExpenseCategory
-  amount: string; // string for input
-  date: string; // YYYY-MM-DD
+  category: ExpenseFormValues["category"];
+  amount: string;
+  date: string;
   recurring: boolean;
   notes: string | null;
-  staffId: string; // string for form handling
+  staffId: string;
 };
 
 export default function ExpenseModal({
@@ -45,21 +44,23 @@ export default function ExpenseModal({
   const [search, setSearch] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // Reset form when expense or isOpen changes
+  // Reset form when modal opens or expense changes
   useEffect(() => {
     if (!isOpen) return;
 
     if (expense) {
       setFormData({
-        description: expense.description,
+        description: expense.description || "",
         category: expense.category,
-        amount: expense.amount.toString(), // number → string
+        amount: expense.amount.toString(),
         date: expense.date,
         recurring: expense.recurring,
         notes: expense.notes || "",
-        staffId: expense.staffId?.toString() || "", // number → string
+        staffId: expense.staffId?.toString() || "",
       });
-      setSearch(expense.staff ? `${expense.staff.name} (${expense.staff.role})` : "");
+      setSearch(
+        expense.staff ? `${expense.staff.name} (${expense.staff.role})` : ""
+      );
     } else {
       setFormData({
         description: "",
@@ -76,7 +77,9 @@ export default function ExpenseModal({
   }, [expense, isOpen]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -90,7 +93,7 @@ export default function ExpenseModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.description.trim()) {
+    if (!formData.description?.trim()) {
       setError("Description is required");
       return;
     }
@@ -101,10 +104,16 @@ export default function ExpenseModal({
       return;
     }
 
-    const staffId = formData.staffId ? parseInt(formData.staffId, 10) : null;
-    if (isNaN(staffId as number) && staffId !== null) {
-      setError("Invalid staff ID");
-      return;
+    let staffId = null;
+    if (formData.category === "SALARY") {
+      staffId = formData.staffId ? parseInt(formData.staffId, 10) : null;
+      if (!staffId) {
+        setError("Salary expense must be assigned to a staff member");
+        return;
+      }
+    } else {
+      // Ensure staffId is not sent if not salary
+      staffId = null;
     }
 
     setError("");
@@ -121,7 +130,7 @@ export default function ExpenseModal({
         date: formData.date,
         recurring: formData.recurring,
         notes: formData.notes || null,
-        staffId,
+        ...(formData.category === "SALARY" && { staffId }),
       };
 
       const response = await fetch(url, {
@@ -150,6 +159,8 @@ export default function ExpenseModal({
       staff.name.toLowerCase().includes(search.toLowerCase()) ||
       staff.role.toLowerCase().includes(search.toLowerCase())
   );
+
+  const isSalary = formData.category === "SALARY";
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -242,7 +253,9 @@ export default function ExpenseModal({
 
           {/* Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date *
+            </label>
             <input
               type="date"
               name="date"
@@ -253,57 +266,66 @@ export default function ExpenseModal({
             />
           </div>
 
-          {/* Staff Search */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Assign to Staff (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="Search staff..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onClick={() => setIsDropdownOpen(true)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isSubmitting}
-            />
-            {isDropdownOpen && (
-              <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                <li
-                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700"
-                  onClick={() => {
-                    setFormData((prev) => ({ ...prev, staffId: "" }));
-                    setSearch("");
-                    setIsDropdownOpen(false);
-                  }}
-                >
-                  — None —
-                </li>
-                {filteredStaff.length > 0 ? (
-                  filteredStaff.map((staff) => (
-                    <li
-                      key={staff.id}
-                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-                      onClick={() => {
-                        setFormData((prev) => ({ ...prev, staffId: staff.id.toString() }));
-                        setSearch(`${staff.name} (${staff.role})`);
-                        setIsDropdownOpen(false);
-                      }}
-                    >
-                      {staff.name}{" "}
-                      <span className="text-gray-500">({staff.role})</span>
+          {/* Conditionally Show: Assign to Staff (only for SALARY) */}
+          {isSalary && (
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assign to Staff *
+              </label>
+              <input
+                type="text"
+                placeholder="Search staff..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={() => setIsDropdownOpen(true)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSubmitting}
+              />
+              {isDropdownOpen && (
+                <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  <li
+                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, staffId: "" }));
+                      setSearch("");
+                      setIsDropdownOpen(false);
+                    }}
+                  >
+                    — None —
+                  </li>
+                  {filteredStaff.length > 0 ? (
+                    filteredStaff.map((staff) => (
+                      <li
+                        key={staff.id}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        onClick={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            staffId: staff.id.toString(),
+                          }));
+                          setSearch(`${staff.name} (${staff.role})`);
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        {staff.name}{" "}
+                        <span className="text-gray-500">({staff.role})</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="px-3 py-2 text-gray-500 text-sm">
+                      No staff found
                     </li>
-                  ))
-                ) : (
-                  <li className="px-3 py-2 text-gray-500 text-sm">No staff found</li>
-                )}
-              </ul>
-            )}
-          </div>
+                  )}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes
+            </label>
             <textarea
               name="notes"
               value={formData.notes ?? ""}
@@ -326,7 +348,10 @@ export default function ExpenseModal({
               id="recurring"
               disabled={isSubmitting}
             />
-            <label htmlFor="recurring" className="ml-2 block text-sm text-gray-700">
+            <label
+              htmlFor="recurring"
+              className="ml-2 block text-sm text-gray-700"
+            >
               Recurring expense
             </label>
           </div>

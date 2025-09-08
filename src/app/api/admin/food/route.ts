@@ -3,18 +3,26 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import { foodSchema } from "@/lib/schemas/foodSchema";
-import sharp from "sharp";
-import { put, del } from "@vercel/blob";
-import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 
-// Upload config
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-const VALID_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const THUMBNAIL_SIZE = { width: 800, height: 600 };
+// Schema updates
+const FoodOptionSchema = z.object({
+  name: z.string().min(1),
+  price: z.number().nonnegative(),
+});
+
+const FoodSchema = z.object({
+  id: z.number().int().optional(),
+  name: z.string().min(1, "Name is required").max(100),
+  description: z.string().nullable(),
+  price: z.number().positive("Price must be positive"),
+  categoryId: z.number().int(),
+  available: z.boolean().default(true),
+  options: z.array(FoodOptionSchema).optional(),
+});
 
 type ApiResponse = {
-  foods: Array<{
+  foods: {
     id: number;
     name: string;
     description: string | null;
@@ -23,9 +31,9 @@ type ApiResponse = {
     available: boolean;
     categoryId: number;
     categoryName: string;
-    options: { name: string; price: number }[];
+    options: { id: number; name: string; price: number }[];
     createdAt: string;
-  }>;
+  }[];
   totalCount: number;
   totalPages: number;
   currentPage: number;
@@ -39,43 +47,62 @@ export async function GET(req: Request) {
     }
 
     const restaurantId = session.user.restaurantId;
-    if (!restaurantId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = (page - 1) * limit;
+    const search = searchParams.get("search") || "";
 
+    if (!restaurantId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Build where clause
+    let where: any = { restaurantId };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { category: { name: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    // Get foods with category names and options
     const [foods, totalCount] = await Promise.all([
       prisma.food.findMany({
-        where: { restaurantId },
-        include: {
+        where,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          price: true,
+          image: true,
+          available: true,
+          categoryId: true,
           category: { select: { name: true } },
-          options: true,
+          options: { select: { id: true, name: true, price: true } },
+          createdAt: true,
         },
         orderBy: { name: "asc" },
         skip: offset,
         take: limit,
       }),
-      prisma.food.count({ where: { restaurantId } }),
+      prisma.food.count({ where }),
     ]);
 
     const totalPages = Math.ceil(totalCount / limit);
 
     const response: ApiResponse = {
-      foods: foods.map((f) => ({
-        id: f.id,
-        name: f.name,
-        description: f.description,
-        price: f.price,
-        image: f.image,
-        available: f.available,
-        categoryId: f.categoryId,
-        categoryName: f.category.name,
-        options: f.options.map((o) => ({ name: o.name, price: o.price })),
-        createdAt: f.createdAt.toISOString(),
+      foods: foods.map((food) => ({
+        ...food,
+        categoryName: food.category.name,
+        price: Number(food.price),
+        options: food.options.map((opt) => ({
+          id: opt.id,
+          name: opt.name,
+          price: Number(opt.price),
+        })),
+        createdAt: food.createdAt.toISOString(),
       })),
       totalCount,
       totalPages,
@@ -100,21 +127,40 @@ export async function POST(req: Request) {
     }
 
     const restaurantId = session.user.restaurantId;
-    const formData = await req.formData();
-    const name = formData.get("name") as string;
-    const description = formData.get("description") as string | null;
-    const price = Number(formData.get("price"));
-    const categoryId = Number(formData.get("categoryId"));
-    const available = formData.get("available") === "true";
-    const file = formData.get("image") as File | null;
+    if (!restaurantId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const parsed = foodSchema.safeParse({
+    const formData = await req.formData();
+    const name = formData.get("name");
+    const description = formData.get("description");
+    const price = parseFloat(formData.get("price") as string);
+    const categoryId = parseInt(formData.get("categoryId") as string);
+    const available = formData.get("available") === "true";
+
+    // Parse options from form data
+    const options: { name: string; price: number }[] = [];
+    let optionIndex = 0;
+    while (true) {
+      const name = formData.get(`options[${optionIndex}].name`);
+      const priceStr = formData.get(`options[${optionIndex}].price`);
+
+      if (!name || !priceStr) break;
+
+      options.push({
+        name: name as string,
+        price: parseFloat(priceStr as string),
+      });
+      optionIndex++;
+    }
+
+    const parsed = FoodSchema.safeParse({
       name,
-      description: description || null,
+      description,
       price,
       categoryId,
       available,
-      options: [],
+      options,
     });
 
     if (!parsed.success) {
@@ -124,101 +170,56 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check category belongs to restaurant
-    const category = await prisma.category.findUnique({
-      where: { id: categoryId },
-    });
+    const data = parsed.data;
 
-    if (!category || category.restaurantId !== restaurantId) {
-      return NextResponse.json({ error: "Invalid category" }, { status: 400 });
-    }
-
-    // Case-insensitive duplicate check
-    const existing = await prisma.food.findFirst({
+    // Verify category belongs to restaurant
+    const category = await prisma.category.findFirst({
       where: {
-        name: { mode: "insensitive", equals: name },
+        id: categoryId,
         restaurantId,
       },
     });
 
-    if (existing) {
+    if (!category) {
       return NextResponse.json(
-        { error: "A food item with this name already exists." },
-        { status: 409 }
+        { error: "Category not found or doesn't belong to your restaurant" },
+        { status: 404 }
       );
     }
 
-    let image: string | null = null;
-
-    if (file) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      if (!VALID_TYPES.includes(file.type)) {
-        return NextResponse.json(
-          { error: "Invalid image type" },
-          { status: 400 }
-        );
-      }
-      if (file.size > MAX_SIZE) {
-        return NextResponse.json({ error: "Image too large" }, { status: 400 });
-      }
-
-      // Resize in memory
-      const resizedBuffer = await sharp(buffer)
-        .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, { fit: "inside" })
-        .jpeg({ quality: 80 })
-        .png({ compressionLevel: 6 })
-        .webp({ quality: 80 })
-        .toBuffer();
-
-      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-      const filename = `${name.replace(/\W+/g, "_")}_${Date.now()}.${ext}`;
-
-      // Upload to Vercel Blob
-      const blob = await put(`foods/${filename}`, resizedBuffer, {
-        access: "public",
+    // Create food with options in a transaction
+    const food = await prisma.$transaction(async (tx) => {
+      // Create the food
+      const createdFood = await tx.food.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          price: data.price,
+          available: data.available,
+          categoryId: data.categoryId,
+          restaurantId: restaurantId,
+        },
       });
 
-      image = blob.url;
-    }
-
-    const food = await prisma.food.create({
-      data: {
-        name,
-        description,
-        price,
-        image,
-        available,
-        category: { connect: { id: categoryId } },
-        restaurant: { connect: { id: restaurantId } },
-      },
-    });
-
-    // Add options
-    const options: Array<{ name: string; price: number }> = [];
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith("options[")) {
-        const match = key.match(/options\[(\d+)\]\.(name|price)/);
-        if (match) {
-          const idx = parseInt(match[1]);
-          const field = match[2];
-          if (!options[idx]) options[idx] = { name: "", price: 0 };
-          if (field === "name") options[idx].name = value as string;
-          else options[idx].price = Number(value);
-        }
+      // Create options if provided
+      if (data.options && data.options.length > 0) {
+        await tx.foodOption.createMany({
+          data: data.options.map((opt) => ({
+            name: opt.name,
+            price: opt.price,
+            foodId: createdFood.id,
+          })),
+        });
       }
-    }
 
-    await prisma.foodOption.createMany({
-      data: options
-        .filter((o) => o.name)
-        .map((o) => ({ name: o.name, price: o.price, foodId: food.id })),
+      return createdFood;
     });
 
     return NextResponse.json(food, { status: 201 });
   } catch (error) {
     console.error("POST /api/admin/food", error);
     return NextResponse.json(
-      { error: "Failed to create food" },
+      { error: "Failed to create food item" },
       { status: 500 }
     );
   }
@@ -232,123 +233,158 @@ export async function PUT(req: Request) {
     }
 
     const restaurantId = session.user.restaurantId;
+    if (!restaurantId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const id = Number(formData.get("id"));
-    const name = formData.get("name") as string;
-    const description = formData.get("description") as string | null;
-    const price = Number(formData.get("price"));
-    const categoryId = Number(formData.get("categoryId"));
+    const name = formData.get("name");
+    const description = formData.get("description");
+    const price = parseFloat(formData.get("price") as string);
+    const categoryId = parseInt(formData.get("categoryId") as string);
     const available = formData.get("available") === "true";
-    const file = formData.get("image") as File | null;
 
     if (isNaN(id)) {
       return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
     }
 
-    const parsed = foodSchema.safeParse({
+    // Parse options from form data
+    const options: { name: string; price: number }[] = [];
+    let optionIndex = 0;
+    while (true) {
+      const name = formData.get(`options[${optionIndex}].name`);
+      const priceStr = formData.get(`options[${optionIndex}].price`);
+
+      if (!name || !priceStr) break;
+
+      options.push({
+        name: name as string,
+        price: parseFloat(priceStr as string),
+      });
+      optionIndex++;
+    }
+
+    const parsed = FoodSchema.safeParse({
+      id,
       name,
       description,
       price,
       categoryId,
       available,
+      options,
     });
 
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
 
+    const data = parsed.data;
+
     const food = await prisma.food.findUnique({ where: { id } });
     if (!food || food.restaurantId !== restaurantId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const existing = await prisma.food.findFirst({
-      where: {
-        name: { mode: "insensitive", equals: name },
-        restaurantId,
-        NOT: { id },
-      },
-    });
-
-    if (existing) {
       return NextResponse.json(
-        { error: "Another food has this name." },
-        { status: 409 }
+        { error: "Food item not found" },
+        { status: 404 }
       );
     }
 
-    let image = food.image;
-
-    if (file) {
-      // Delete old blob
-      if (food.image) {
-        try {
-          await del(food.image);
-        } catch (err) {
-          console.warn("Failed to delete old image from Blob", err);
-        }
-      }
-
-      const buffer = Buffer.from(await file.arrayBuffer());
-
-      const resizedBuffer = await sharp(buffer)
-        .resize(THUMBNAIL_SIZE.width, THUMBNAIL_SIZE.height, { fit: "inside" })
-        .jpeg({ quality: 80 })
-        .png({ compressionLevel: 6 })
-        .webp({ quality: 80 })
-        .toBuffer();
-
-      const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-      const filename = `food_${uuidv4()}.${ext}`;
-
-      const blob = await put(`foods/${filename}`, resizedBuffer, {
-        access: "public",
-      });
-
-      image = blob.url;
-    }
-
-    const updated = await prisma.food.update({
-      where: { id },
-      data: {
-        name,
-        description,
-        price,
-        image,
-        available,
-        categoryId,
+    // Verify category belongs to restaurant
+    const category = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        restaurantId,
       },
     });
 
-    // Update options: delete and recreate
-    await prisma.foodOption.deleteMany({ where: { foodId: id } });
-
-    const options: Array<{ name: string; price: number }> = [];
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith("options[")) {
-        const match = key.match(/options\[(\d+)\]\.(name|price)/);
-        if (match) {
-          const idx = parseInt(match[1]);
-          const field = match[2];
-          if (!options[idx]) options[idx] = { name: "", price: 0 };
-          if (field === "name") options[idx].name = value as string;
-          else options[idx].price = Number(value);
-        }
-      }
+    if (!category) {
+      return NextResponse.json(
+        { error: "Category not found or doesn't belong to your restaurant" },
+        { status: 404 }
+      );
     }
 
-    if (options.length > 0) {
-      await prisma.foodOption.createMany({
-        data: options
-          .filter((o) => o.name)
-          .map((o) => ({ name: o.name, price: o.price, foodId: id })),
+    // Update food and options in a transaction
+    const updated = await prisma.$transaction(async (tx) => {
+      // Update the food
+      const updatedFood = await tx.food.update({
+        where: { id },
+        data: {
+          name: data.name,
+          description: data.description,
+          price: data.price,
+          available: data.available,
+          categoryId: data.categoryId,
+        },
       });
-    }
+
+      // Delete existing options
+      await tx.foodOption.deleteMany({
+        where: { foodId: id },
+      });
+
+      // Create new options if provided
+      if (data.options && data.options.length > 0) {
+        await tx.foodOption.createMany({
+          data: data.options.map((opt) => ({
+            name: opt.name,
+            price: opt.price,
+            foodId: id,
+          })),
+        });
+      }
+
+      return updatedFood;
+    });
 
     return NextResponse.json(updated);
   } catch (error) {
     console.error("PUT /api/admin/food", error);
-    return NextResponse.json({ error: "Failed to update" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update food item" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { foodId, available } = await req.json();
+
+    if (!foodId) {
+      return NextResponse.json({ error: "Food ID required" }, { status: 400 });
+    }
+
+    // Verify category belongs to restaurant
+    const food = await prisma.food.findUnique({
+      where: { id: foodId },
+    });
+
+    if (!food || food.restaurantId !== session.user.restaurantId) {
+      return NextResponse.json(
+        { error: "Food Item not found" },
+        { status: 404 }
+      );
+    }
+
+    // Update availability
+    const updated = await prisma.food.update({
+      where: { id: foodId },
+      data: { available: Boolean(available) },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("PATCH /api/admin/food", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -360,6 +396,10 @@ export async function DELETE(req: Request) {
     }
 
     const restaurantId = session.user.restaurantId;
+    if (!restaurantId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get("id"));
 
@@ -369,26 +409,19 @@ export async function DELETE(req: Request) {
 
     const food = await prisma.food.findUnique({ where: { id } });
     if (!food || food.restaurantId !== restaurantId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Food item not found" },
+        { status: 404 }
+      );
     }
 
-    // Delete image from Blob
-    if (food.image) {
-      try {
-        await del(food.image);
-      } catch (err) {
-        console.warn("Failed to delete image from Blob", err);
-      }
-    }
-
-    await prisma.foodOption.deleteMany({ where: { foodId: id } });
     await prisma.food.delete({ where: { id } });
-
-    return NextResponse.json({ message: "Deleted successfully" });
+    return NextResponse.json({ message: "Food item deleted successfully." });
   } catch (error) {
     console.error("DELETE /api/admin/food", error);
-    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete food item" },
+      { status: 500 }
+    );
   }
 }
-
-export const runtime = "nodejs";

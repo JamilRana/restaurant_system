@@ -1,14 +1,14 @@
 // app/api/cart/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { prisma } from "@/lib/prisma";
 import { authOptions } from "../../../lib/authOptions";
+import { Decimal } from "@prisma/client/runtime/library"; // ✅ Import Decimal type
+import { prisma } from "@/lib/prisma";
 
-// Define expected shape of item
 interface OrderItemWithFood {
   id: number;
   quantity: number;
-  price: number;
+  price: Decimal; // ← Now matches Prisma
   food: {
     id: number;
     name: string;
@@ -17,11 +17,10 @@ interface OrderItemWithFood {
   };
   foodOption: {
     name: string;
-    price: number;
+    price: Decimal; // ← Also Decimal if it has price
   } | null;
   foodOptionId: number | null;
 }
-
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -38,15 +37,9 @@ export async function POST(request: Request) {
 
   const orderNumber = parseInt(orderId, 10);
 
-  if (!orderId) {
-    console.log(" fs", orderId, orderNumber);
-    return NextResponse.json({ error: "Order ID required" }, { status: 400 });
-  }
-
   try {
-    // Find the original order with items and food
     const originalOrder = await prisma.order.findUnique({
-      where: { id: orderNumber }, // ✅ Ensure orderId is number
+      where: { id: orderNumber },
       include: {
         items: {
           include: {
@@ -62,16 +55,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    // ✅ Map with typed parameter
+    // ✅ Map items and convert Decimal to number
     const basketItems = originalOrder.items.map((item: OrderItemWithFood) => ({
       id: item.food.id,
       name: item.food.name,
       description: item.food.description || "",
-      price: item.price,
       image: item.food.image || "",
       quantity: item.quantity,
+      price: item.price.toNumber(), // ✅ Correct way to convert Decimal → number
       option: item.foodOption
-        ? { name: item.foodOption.name, price: item.foodOption.price }
+        ? {
+            name: item.foodOption.name,
+            price: item.foodOption.price.toNumber(), // ✅ Convert option price too
+          }
         : undefined,
       optionId: item.foodOptionId || null,
     }));

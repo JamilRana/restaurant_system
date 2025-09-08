@@ -1,5 +1,6 @@
 // types/index.ts
 import { ExpenseCategory, SalaryPeriod, StaffRole } from "@prisma/client";
+import { Decimal } from "@prisma/client/runtime/library";
 
 // --- Pagination ---
 export type Paginated<T> = {
@@ -84,32 +85,32 @@ export interface OrderInput {
 export type OrderItemWithFood = {
   id: number;
   quantity: number;
-  price: number;
+  price: Decimal;
   food: {
     id: number;
     name: string;
     description: string | null;
     image: string | null;
-    price: number;
+    price: Decimal;
   };
 };
 
 // --- Full Order with Items ---
 export type OrderWithItems = {
   id: number;
-  totalAmount: number;
-  finalAmount: number | null;
-  discountAmount: number | null;
+  totalAmount: Decimal;
+  finalAmount: Decimal | null;
+  discountAmount: Decimal | null;
   timeSlot: string | null;
   address: string | null;
   postcode: string | null;
   status:
-    | "placed"
-    | "accepted"
-    | "rejected"
-    | "preparing"
-    | "ready"
-    | "delivered";
+    | "PLACED"
+    | "ACCEPTED"
+    | "REJECTED"
+    | "PREPARING"
+    | "READY"
+    | "DELIVERED";
   createdAt: Date;
   updatedAt: Date;
   items: OrderItemWithFood[];
@@ -136,19 +137,10 @@ export type Customer = {
 
 // --- Staff ---
 export type Staff = {
-  id: number;
-  name: string;
-  role: StaffRole;
-  email: string | null;
-  phone: string | null;
-  hireDate: string;
-  salary: number | null;
-  hourlyRate: number | null;
-  salaryPeriod: SalaryPeriod | null;
+  id: number | null; // ← nullable
+  name: string | null;
+  role: string; // ← string, not StaffRole (unless you import it)
   active: boolean;
-  notes: string | null;
-  restaurantId: number;
-  updatedAt: string;
 };
 
 // --- Expense ---
@@ -180,55 +172,87 @@ export type ExpenseFormValues = {
   staff: { id: number; name: string; role: StaffRole } | null;
 };
 
-// --- Salary Payment History ---
+// --- User ---
+export type User = {
+  id: number;
+  email: string;
+  role: "ADMIN" | "STAFF" | "CUSTOMER" | "OWNER";
+  createdAt: string;
+  staff?: {
+    id: number | null;
+    name: string | null;
+    role: string;
+    active: boolean;
+  } | null;
+  customer?: {
+    name: string | null;
+    phone: string | null;
+    address: string | null;
+    postcode: string | null;
+  } | null;
+};
+
+// --- ApiResponse ---
+export type ApiResponse = {
+  users: User[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+};
+
+export type Reservation = {
+  id: number;
+  name: string;
+  phone: string;
+  email: string | null;
+  guests: number;
+  startsAt: string;
+  duration: number;
+  notes: string | null;
+  status: "CONFIRMED" | "CANCELLED" | "COMPLETED" | "PENDING";
+  createdAt: string;
+  table: { number: string } | null;
+  tables: { table: { number: string } }[];
+  restaurantId: number;
+};
+
+export type Table = {
+  id: number;
+  number: string;
+  capacity: number;
+};
+
+// Match what the API returns from /api/admin/staff
+export type ApiStaff = {
+  id: number;
+  name: string;
+  role: StaffRole;
+  email: string | null;
+  phone: string | null;
+  hireDate: string; // ISO string, not Date
+  salary: number | null;
+  hourlyRate: number | null;
+  salaryPeriod: SalaryPeriod | null;
+  active: boolean;
+  notes: string | null;
+  userId: number | null;
+  due: number;
+};
+
+// Match what /api/admin/expenses/salary/history returns
 export type SalaryPayment = {
   id: number;
   staffId: number;
   staffName: string;
   role: StaffRole;
   amount: number;
-  date: string;
+  date: string; // YYYY-MM-DD
   notes: string | null;
 };
 
-// --- Staff Due Payment ---
-export type StaffDuePayment = {
-  id: number;
-  name: string;
-  role: StaffRole;
+// For due calculation
+export type StaffDuePayment = ApiStaff & {
   expected: number;
   paid: number;
   due: number;
-};
-
-// --- User ---
-export type User = {
-  id: string;
-  email: string;
-  name: string | null;
-  role: "ADMIN" | "CUSTOMER" | "KITCHEN";
-  restaurantId: number | null;
-};
-
-// --- Helper Types ---
-export type StaffWithExpenses = {
-  id: number;
-  name: string;
-  role: StaffRole;
-  salary: number | null;
-  hourlyRate: number | null;
-  salaryPeriod: SalaryPeriod | null;
-  expenses: {
-    amount: number;
-    date: string;
-  }[];
-};
-
-export type PrismaExpenseWithStaff = {
-  id: number;
-  amount: number;
-  date: string;
-  notes: string | null;
-  staffId: number | null;
-  staff: { name: string; role: StaffRole } | null;
 };

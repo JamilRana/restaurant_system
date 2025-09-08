@@ -224,6 +224,7 @@ const MenuPage = () => {
               ref={(el) => {
                 sectionRefs.current[cat.id] = el;
               }}
+              className="top-10"
             >
               <CategorySection
                 category={cat.name}
@@ -262,6 +263,9 @@ const MenuPage = () => {
             />
           </div>
         ))}
+        <div id="basket-section" className="md:hidden bg-white border-t">
+          <Cart />
+        </div>
       </div>
 
       {/* Mobile: Fixed Basket Button */}
@@ -278,9 +282,6 @@ const MenuPage = () => {
       </button>
 
       {/* Mobile: Sticky Basket at Bottom */}
-      <div id="basket-section" className="md:hidden bg-white border-t">
-        <Cart />
-      </div>
     </div>
   );
 };

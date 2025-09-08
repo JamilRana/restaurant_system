@@ -18,9 +18,9 @@ export async function GET(
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-       items: {
-        include: {
-          food: {
+        items: {
+          include: {
+            food: {
               select: {
                 id: true,
                 name: true,
@@ -45,12 +45,12 @@ export async function GET(
       address: order.address,
       postcode: order.postcode,
       totalAmount: order.totalAmount,
-      finalAmount:order.finalAmount,
+      finalAmount: order.finalAmount,
       discountAmount: order.discountAmount,
       createdAt: order.createdAt,
       status: order.status,
-      updatedAt:order.updatedAt,
-      items: order.items.map((item:OrderItemWithFood) => ({
+      updatedAt: order.updatedAt,
+      items: order.items.map((item: OrderItemWithFood) => ({
         id: item.id,
         quantity: item.quantity,
         price: item.price,
@@ -61,8 +61,7 @@ export async function GET(
           image: item.food.image,
           price: item.food.price,
         },
-      }),
-    ),
+      })),
     };
 
     return NextResponse.json(result);

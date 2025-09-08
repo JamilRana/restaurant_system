@@ -43,7 +43,7 @@ const Navbar = () => {
   return (
     <div className="flex justify-between sticky top-0 z-50 items-center px-6 py-4 bg-[#F2F2F2] shadow-sm">
       {/* LOGO */}
-      <div className="flex items-center text-lg md:text-3xl font-bold">
+      <div className="flex items-center text-sm md:text-3xl font-bold">
         <Link href="/" key={rest.restaurant?.email} className="text-[#000]">
           {rest.restaurant?.name}
           <span className="bg-orange-500 text-white text-sm font-bold px-1 py-0.5 rounded-sm ml-1">

@@ -3,117 +3,155 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const GETQuerySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(10),
-  status: z.string().optional(),
-  search: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-});
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || !["WAITER", "KITCHEN"].includes(session.user.role)) {
+  if (!session || !["ADMIN", "WAITER", "KITCHEN"].includes(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // ✅ Get restaurantId via Staff (safer)
-  const staff = await prisma.staff.findFirst({
-    where: { userId: session.user.id },
-  });
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "10");
+  const search = searchParams.get("search") || "";
+  const startDateParam = searchParams.get("startDate");
+  const endDateParam = searchParams.get("endDate");
+  const status = searchParams.get("status")?.split(",") || null;
 
-  if (!staff) {
-    return NextResponse.json(
-      { error: "No staff profile found" },
-      { status: 403 }
-    );
-  }
-  const createdById = session.user.id;
-
-  const restaurantId = staff.restaurantId;
-
+  const restaurantId = session.user.restaurantId;
   if (!restaurantId) {
     return NextResponse.json(
       { error: "No restaurant assigned" },
-      { status: 403 }
+      { status: 400 }
     );
   }
 
-  const { searchParams } = new URL(request.url);
-  const parsed = GETQuerySchema.safeParse(Object.fromEntries(searchParams));
+  // Parse dates safely
+  const startDate = startDateParam ? new Date(startDateParam) : null;
+  let endDate = endDateParam ? new Date(endDateParam) : null;
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid query" }, { status: 400 });
+  if (endDate) {
+    endDate = new Date(endDate);
+    endDate.setHours(23, 59, 59, 999); // Safe copy via constructor + mutate
   }
 
-  const { page, limit, status, search, startDate, endDate } = parsed.data;
+  // Build WHERE filter
+  const where: any = {
+    restaurantId,
+  };
 
-  let whereClause: any = { restaurantId, createdById }; // ✅ Now safe
-
-  if (status) {
-    whereClause.status = { in: status.split(",") };
-  }
-
+  // Search by customer name or email (guest or registered)
   if (search) {
-    whereClause.OR = [
-      { id: { equals: parseInt(search) } },
-      { guestName: { contains: search, mode: "insensitive" } },
-    ];
+    where.customer = {
+      OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ],
+    };
   }
 
-  // Date filtering
+  // Date range filter
   if (startDate || endDate) {
-    whereClause.createdAt = {};
-    if (startDate) whereClause.createdAt.gte = new Date(startDate);
-    if (endDate) whereClause.createdAt.lte = new Date(endDate);
-  } else {
-    // Default to today
-    const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
-    whereClause.createdAt = { gte: startOfDay, lte: endOfDay };
+    where.createdAt = {};
+    if (startDate) where.createdAt.gte = startDate;
+    if (endDate) where.createdAt.lte = endDate;
+  }
+
+  if (searchParams.get("createdById")) {
+    where.createdById = parseInt(searchParams.get("createdById")!);
+  }
+  // Status filter
+  if (status && status.length > 0) {
+    where.status = { in: status };
+    // } else {
+    //   // Default: only active statuses
+    //   where.status = { notIn: ["DELIVERED", "REJECTED"] };
   }
 
   try {
-    const [orders, total] = await Promise.all([
+    // Fetch orders
+    // app/api/waiter/orders/route.ts
+    const [orders, totalCount] = await prisma.$transaction([
       prisma.order.findMany({
-        where: whereClause,
-        skip: (page - 1) * limit,
-        take: limit,
+        where,
         include: {
-          customer: { select: { name: true } },
+          customer: { select: { id: true, name: true, email: true } },
+          currentTableFor: { select: { number: true } },
           items: {
             include: {
               food: {
-                include: { options: true },
+                // ✅ Include food
+                include: {
+                  options: true, // ✅ Include options
+                },
               },
+              foodOption: true,
             },
           },
-          table: { select: { number: true } },
         },
         orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
       }),
-      prisma.order.count({ where: whereClause }),
+      prisma.order.count({ where }),
     ]);
 
-    const cleanedOrders = orders.map((order) => ({
+    // Format orders
+    const formattedOrders = orders.map((order) => ({
       ...order,
-      totalAmount: Number(order.totalAmount.toFixed(2)),
-      finalAmount: order.finalAmount
-        ? Number(order.finalAmount.toFixed(2))
-        : null,
+      createdAt: order.createdAt.toISOString(),
+      items: order.items.map((item) => ({
+        ...item,
+        price: Number(item.price),
+      })),
     }));
+
+    // 🔢 Calculate stats
+    const [dailyStats, allTimeStats] = await prisma.$transaction([
+      // Daily stats
+      prisma.order.aggregate({
+        where: {
+          restaurantId,
+          createdAt: {
+            gte: startDate || new Date(new Date().setHours(0, 0, 0, 0)),
+            lte: endDate || new Date(new Date().setHours(23, 59, 59, 999)),
+          },
+          status: { notIn: ["REJECTED"] },
+        },
+        _sum: { finalAmount: true },
+        _count: { id: true },
+      }),
+
+      // All-time stats (only DELIVERED/accepted)
+      prisma.order.aggregate({
+        where: {
+          restaurantId,
+          status: { notIn: ["REJECTED"] },
+        },
+        _sum: { finalAmount: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    const dailySales = Number(dailyStats._sum.finalAmount || 0);
+    const dailyOrders = dailyStats._count.id;
+    const allTimeSales = Number(allTimeStats._sum.finalAmount || 0);
+    const allTimeOrders = allTimeStats._count.id;
+
     return NextResponse.json({
-      orders: cleanedOrders,
-      totalCount: total,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      orders: formattedOrders,
+      totalPages: Math.ceil(totalCount / limit),
+      totalCount,
+      stats: {
+        daily: { sales: dailySales, orders: dailyOrders },
+        allTime: { sales: allTimeSales, orders: allTimeOrders },
+      },
     });
   } catch (error) {
-    console.error("Failed to fetch waiter orders:", error);
-    return NextResponse.json({ error: "Server Error" }, { status: 500 });
+    console.error("Error fetching waiter orders:", error);
+    return NextResponse.json(
+      { error: "Failed to load orders" },
+      { status: 500 }
+    );
   }
 }

@@ -1,60 +1,76 @@
 // components/Admin/Analytics/OrderTypeBreakdown.tsx
-"use client";
+import React from "react";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartOptions, // Import ChartOptions
+} from "chart.js";
 
-import { AnalyticsDateProps } from "@/types/analytics";
-import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
-export default function OrderTypeBreakdown({ dateRange }: AnalyticsDateProps) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["orderTypes", dateRange],
-    queryFn: async () => {
-      const res = await axios.get("/api/admin/analytics/order-types", { params: dateRange });
-      return res.data as { type: "PICKUP" | "DELIVERY"; count: number }[];
+interface OrderTypeData {
+  PICKUP: number;
+  DELIVERY: number;
+  DINEIN: number;
+}
+
+interface OrderTypeBreakdownProps {
+  data: OrderTypeData | null;
+}
+
+const OrderTypeBreakdown: React.FC<OrderTypeBreakdownProps> = ({ data }) => {
+  const chartData = {
+    labels: ["Pickup", "Delivery", "Dine-In"],
+    datasets: [
+      {
+        label: "Number of Orders",
+        data: [data?.PICKUP || 0, data?.DELIVERY || 0, data?.DINEIN || 0],
+        backgroundColor: "#10b981",
+      },
+    ],
+  };
+
+  // Define options with correct typing
+  const options: ChartOptions<"bar"> = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top", // ✅ Now typed correctly
+      },
+      title: {
+        display: true,
+        text: "Order Type Breakdown",
+      },
     },
-  });
-
-  if (isLoading || !data) {
-    return <div className="bg-white p-6 rounded-lg shadow">Loading...</div>;
-  }
-
-  const pickup = data.find(d => d.type === "PICKUP")?.count || 0;
-  const delivery = data.find(d => d.type === "DELIVERY")?.count || 0;
-  const total = pickup + delivery;
-  const pickupPercent = total ? Math.round((pickup / total) * 100) : 0;
-  const deliveryPercent = total ? Math.round((delivery / total) * 100) : 0;
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: "Orders",
+        },
+      },
+    },
+  };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-semibold mb-4">Order Types</h3>
-
-      <div className="space-y-4">
-        <div>
-          <div className="flex justify-between text-sm">
-            <span>Pickup</span>
-            <span>{pickup} orders ({pickupPercent}%)</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-            <div
-              className="bg-blue-600 h-2 rounded-full"
-              style={{ width: `${pickupPercent}%` }}
-            ></div>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex justify-between text-sm">
-            <span>Delivery</span>
-            <span>{delivery} orders ({deliveryPercent}%)</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-            <div
-              className="bg-green-600 h-2 rounded-full"
-              style={{ width: `${deliveryPercent}%` }}
-            ></div>
-          </div>
-        </div>
-      </div>
+    <div className="bg-white p-6 rounded-lg shadow-md border h-80">
+      <Bar data={chartData} options={options} />
     </div>
   );
-}
+};
+
+export default OrderTypeBreakdown;
