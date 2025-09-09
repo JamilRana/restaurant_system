@@ -128,22 +128,6 @@ export default function ManageRestaurants() {
             <DetailItem label="Email" value={restaurant.email} />
             <DetailItem label="Address" value={restaurant.address || "—"} />
             <DetailItem
-              label="Logo"
-              value={
-                restaurant.logoPath ? (
-                  <img
-                    src={restaurant.logoPath}
-                    alt="Logo"
-                    className="h-12 mt-1 rounded-md shadow-sm border"
-                  />
-                ) : (
-                  <span className="text-slate-400 italic">
-                    No logo uploaded
-                  </span>
-                )
-              }
-            />
-            <DetailItem
               label="Delivery Time"
               value={restaurant.deliveryTime || "—"}
             />
@@ -190,38 +174,12 @@ function RestaurantEditForm({
   const [collectionTime, setCollectionTime] = useState(
     restaurant.collectionTime || ""
   );
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(
-    restaurant.logoPath
-  );
-
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.match(/^image\/(jpeg|png|jpg|webp)$/)) {
-        alert("Please upload a valid image (JPG, PNG, WebP).");
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image must be less than 5MB.");
-        return;
-      }
-      setLogoFile(file);
-      setLogoPreview(URL.createObjectURL(file));
-    }
-  };
-
-  const removeLogo = () => {
-    setLogoFile(null);
-    setLogoPreview(null);
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData();
     formData.append("deliveryTime", deliveryTime.trim());
     formData.append("collectionTime", collectionTime.trim());
-    if (logoFile) formData.append("logo", logoFile);
     onSubmit(formData);
   };
 
@@ -267,54 +225,6 @@ function RestaurantEditForm({
           required
         />
       </div>
-
-      {/* Logo Upload */}
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">
-          Logo Image (Optional)
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleLogoChange}
-            id="logo-upload"
-            className="sr-only"
-          />
-          <label
-            htmlFor="logo-upload"
-            className="flex-1 cursor-pointer bg-slate-50 border border-dashed border-slate-300 rounded-lg px-4 py-3 text-center hover:bg-slate-100 transition"
-          >
-            <span className="text-sm text-slate-600">
-              {logoFile
-                ? `Selected: ${logoFile.name}`
-                : "Click to upload or drag image"}
-            </span>
-          </label>
-        </div>
-
-        {logoPreview && (
-          <div className="mt-4 flex items-center gap-4">
-            <div className="relative h-16 w-16 rounded-md overflow-hidden border shadow-sm">
-              <Image
-                src={logoPreview}
-                alt="Logo Preview"
-                width={64}
-                height={64}
-                className="object-cover"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={removeLogo}
-              className="text-red-600 hover:text-red-800 font-medium text-sm"
-            >
-              Remove
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-2">
         <button

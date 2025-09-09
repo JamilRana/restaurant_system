@@ -3,11 +3,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import { put, del } from "@vercel/blob";
-import { v4 as uuidv4 } from "uuid";
-
-// Valid image types
-const VALID_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export async function GET() {
   try {
@@ -22,7 +17,6 @@ export async function GET() {
         name: true,
         email: true,
         address: true,
-        logoPath: true,
         deliveryTime: true,
         collectionTime: true,
       },
@@ -72,41 +66,9 @@ export async function PUT(req: Request) {
       );
     }
 
-    let logoPath = restaurant.logoPath;
-
-    if (file) {
-      if (!VALID_TYPES.includes(file.type)) {
-        return NextResponse.json(
-          { error: "Invalid image type" },
-          { status: 400 }
-        );
-      }
-
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const filename = `logo_${uuidv4()}.${ext}`;
-
-      // Upload to Vercel Blob
-      const blob = await put(`logos/${filename}`, buffer, {
-        access: "public",
-      });
-
-      logoPath = blob.url;
-
-      // Delete old logo from Blob
-      if (restaurant.logoPath) {
-        try {
-          await del(restaurant.logoPath);
-        } catch (err) {
-          console.warn("Failed to delete old logo from Blob", err);
-        }
-      }
-    }
-
     const updated = await prisma.restaurant.update({
       where: { id: restaurant.id },
       data: {
-        logoPath,
         deliveryTime,
         collectionTime,
       },
