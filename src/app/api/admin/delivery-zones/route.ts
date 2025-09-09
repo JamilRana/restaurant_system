@@ -45,19 +45,26 @@ export async function GET(req: Request) {
         skip: offset,
         take: limit,
       }),
-      prisma.deliveryZone.count({ where: { restaurantId } }), // ✅ Fixed: was category
+      prisma.deliveryZone.count({ where: { restaurantId } }),
     ]);
+
+    // ✅ Serialize Decimal to number
+    const serializedZones = zones.map((zone) => ({
+      id: zone.id,
+      postcode: zone.postcode,
+      deliveryFee: zone.deliveryFee.toNumber(), // ✅ Critical fix
+    }));
 
     const totalPages = Math.ceil(totalCount / limit);
 
     const response: ApiResponse = {
-      zones,
+      zones: serializedZones,
       totalCount,
       totalPages,
       currentPage: page,
     };
 
-    return NextResponse.json(response); // ✅ Fixed: was sending `zones`
+    return NextResponse.json(response);
   } catch (error) {
     console.error("GET /api/admin/delivery-zones", error);
     return NextResponse.json(
@@ -66,7 +73,6 @@ export async function GET(req: Request) {
     );
   }
 }
-
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -100,7 +106,13 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json(zone, { status: 201 });
+    return NextResponse.json(
+      {
+        ...zone,
+        deliveryFee: zone.deliveryFee.toNumber(),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -156,10 +168,20 @@ export async function PUT(req: Request) {
       data,
     });
 
-    return NextResponse.json(updated);
+    // ✅ Serialize Decimal and return 200 OK
+    return NextResponse.json(
+      {
+        ...updated,
+        deliveryFee: updated.deliveryFee.toNumber(),
+      },
+      { status: 200 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid data", details: error.issues },
+        { status: 400 }
+      );
     }
     console.error("PUT /api/admin/delivery-zones", error);
     return NextResponse.json(
@@ -168,7 +190,6 @@ export async function PUT(req: Request) {
     );
   }
 }
-
 export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions);
