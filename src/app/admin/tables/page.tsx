@@ -164,9 +164,7 @@ export default function ManageTables() {
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-semibold text-gray-900 mb-2">Tables</h1>
-          <p className="text-gray-600">
-            Manage your restaurant's seating layout
-          </p>
+          <p className="text-gray-600">Manage your restaurant seating layout</p>
         </div>
 
         {/* Controls */}

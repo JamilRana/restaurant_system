@@ -96,7 +96,7 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             <div>
               <strong className="text-gray-700">Special Notes</strong>
               <p className="text-gray-800 mt-1 italic bg-gray-50 p-3 rounded-lg border-l-4 border-gray-200">
-                "{order.orderNote}"
+                {order.orderNote}
               </p>
             </div>
           )}

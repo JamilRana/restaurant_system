@@ -169,7 +169,6 @@ export default function SalaryPayments() {
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           Payments Due ({dueStaff.length})
         </h2>
-        // Inside your return statement
         <DueStaffTable
           staff={dueStaff}
           onPayClick={(staff) => {
@@ -217,7 +216,6 @@ export default function SalaryPayments() {
         <PaymentHistory payments={payments} limit={10} loading={false} />
       </section>
 
-      {/* Modal */}
       {/* Modals */}
       {selectedStaff && (
         <>
@@ -231,7 +229,6 @@ export default function SalaryPayments() {
             onSubmit={handlePaymentSubmit}
             loading={submitting}
           />
-          // Inside your `onSubmit` for TimeEntryModal
           <TimeEntryModal
             isOpen={isTimeModalOpen}
             onClose={() => {

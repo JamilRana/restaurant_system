@@ -342,7 +342,7 @@ export default function AdminOrderList() {
           <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-2">
             Orders
           </h1>
-          <p className="text-slate-600">Manage your restaurant's orders</p>
+          <p className="text-slate-600">Manage your restaurant orders</p>
         </div>
 
         {/* Summary Cards */}
