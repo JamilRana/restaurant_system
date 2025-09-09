@@ -72,15 +72,15 @@ export async function DELETE(
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
-    const promoId = parseInt(params.id);
+    const pramid = await params;
+    const promoId = parseInt(pramid.id);
     if (isNaN(promoId)) {
       return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
     }
