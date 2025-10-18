@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 interface OrderDetailsModalProps {
   order: any;
   onClose: () => void;
-  onUpdate: (updatedOrder: any) => void;
+  onUpdate?: (updatedOrder: any) => void;
 }
 
 type FoodOption = { id: number; name: string; price: number };
@@ -115,7 +115,7 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
       }
 
       const updatedOrder = await res.json();
-      onUpdate(updatedOrder);
+      onUpdate?.(updatedOrder);
       onClose();
     } catch (err: any) {
       setError(err.message || "Payment update failed");
