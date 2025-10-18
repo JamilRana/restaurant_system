@@ -68,11 +68,11 @@ const CategorySection = ({
     });
   };
   return (
-    <div className="  ">
+    <div className="mb-1">
       {/* Toggle Button */}
       <button
         onClick={onToggle}
-        className="w-full text-left p-4 bg-black rounded-t-xs text-white font-bold flex justify-between items-center"
+        className="w-full text-left p-4 bg-black text-white font-bold flex justify-between items-center"
       >
         <span>{category}</span>
         <span>{expanded ? "▲" : "▼"}</span>
@@ -89,13 +89,6 @@ const CategorySection = ({
               ? Number(selectedOption.price) || 0
               : 0;
             const finalPrice = basePrice + extraPrice;
-
-            console.log("Dish data:", {
-              name: dish.name,
-              price: dish.price,
-              optionPrice: selectedOption?.price,
-              finalPrice,
-            });
 
             return (
               <div key={dish.id} className="p-4 border-b last:border-b-0 ">

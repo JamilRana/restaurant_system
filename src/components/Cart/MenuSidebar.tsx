@@ -6,27 +6,37 @@ import React from "react";
 
 interface Props {
   categories: { id: number; name: string }[];
-  activeCategory: number;
+  activeCategory: number | null;
   onScrollTo: (id: number) => void;
 }
+
+// const MenuSidebar: React.FC<Props> = ({
+//   categories,
+//   activeCategory,
+//   onScrollTo,
+// }) => {
+//   const handleClick = (id: number, name: string) => {
+//     const slug = name.toLowerCase().replace(/\s+/g, "-");
+
+//     // ✅ Use pushState to update URL without triggering scroll
+//     window.history.pushState(null, "", `#${slug}`);
+
+//     onScrollTo(id); // This will handle scrolling the food container
+//   };
 
 const MenuSidebar: React.FC<Props> = ({
   categories,
   activeCategory,
-  onScrollTo,
+  onScrollTo: onSelectCategory, // rename for clarity
 }) => {
   const handleClick = (id: number, name: string) => {
-    // Update hash
     const slug = name.toLowerCase().replace(/\s+/g, "-");
-    window.location.hash = slug;
-
-    // Trigger scroll in MenuPage
-    onScrollTo(id);
+    window.history.pushState(null, "", `#${slug}`);
+    onSelectCategory(id); // just select, no scroll needed
   };
 
   return (
-    <div className="bg-[#F2F2F2] px-4 py-6 min-w-full text-sm font-medium text-black sticky top-0 h-screen overflow-y-auto">
-      {/* Heading */}
+    <div className="bg-[#F2F2F2] px-4 py-6 min-w-full text-sm font-medium text-black h-screen overflow-y-auto">
       <div className="flex items-center space-x-2 mb-6">
         <span className="text-2xl">
           <Image src="/icons/menu.png" alt="menu" width={30} height={30} />
@@ -34,7 +44,6 @@ const MenuSidebar: React.FC<Props> = ({
         <h2 className="text-xl font-bold">Menu</h2>
       </div>
 
-      {/* Menu Items */}
       <ul className="space-y-3">
         {categories.map((category) => (
           <li key={category.id}>

@@ -1,4 +1,3 @@
-// app/api/waiter/orders/[id]/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -34,9 +33,13 @@ export async function PATCH(
   }
 
   try {
+    // Fetch order with table relation
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { restaurant: true },
+      include: {
+        restaurant: true,
+        currentTableFor: true,
+      },
     });
 
     if (!order) {
@@ -47,19 +50,29 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    // 🔹 Update order status
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-      data: {
-        status,
-      },
+      data: { status },
       include: {
         items: { include: { food: true, foodOption: true } },
         customer: { select: { name: true, email: true } },
-        currentTableFor: { select: { number: true } },
+        currentTableFor: { select: { id: true, number: true, status: true } },
       },
     });
 
-    // 🔥 Pusher: Broadcast
+    // 🔹 If order delivered → free up the table
+    if (["DELIVERED", "REJECTED"].includes(status) && order.currentTableFor) {
+      await prisma.table.update({
+        where: { id: order.currentTableFor.id },
+        data: {
+          status: "AVAILABLE",
+          currentOrder: { disconnect: true },
+        },
+      });
+    }
+
+    // 🔹 Pusher broadcast
     try {
       const Pusher = require("pusher");
       const pusher = new Pusher({

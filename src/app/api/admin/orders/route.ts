@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         take: limit,
         include: {
           customer: { select: { name: true, email: true, phone: true } },
+          currentTableFor: { select: { number: true } },
           items: { include: { food: true } },
         },
         orderBy: { createdAt: "desc" },

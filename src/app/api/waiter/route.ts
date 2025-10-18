@@ -22,6 +22,8 @@ export async function POST(req: Request) {
       orderNote,
       promoCode,
       items,
+      paymentMethod,
+      isPaid,
     }: {
       deliveryType: "PICKUP" | "DINEIN";
       tableId?: number;
@@ -34,6 +36,8 @@ export async function POST(req: Request) {
         foodOptionId?: number;
         notes?: string;
       }>;
+      paymentMethod?: "CARD" | "CASH";
+      isPaid?: boolean;
     } = await req.json();
 
     if (!items || items.length === 0) {
@@ -57,6 +61,13 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    const paymentStatus = isPaid ? "PAID" : "PENDING";
+    const paymentMethodEnum = paymentMethod
+      ? paymentMethod === "CARD"
+        ? "CARD"
+        : "CASH"
+      : null;
 
     // 1. Find or create customer
     let customer = email
@@ -228,6 +239,8 @@ export async function POST(req: Request) {
           discountAmount,
           promoCodeId: promoCodeId || null,
           createdById: session.user.id,
+          paymentStatus,
+          paymentMethod: paymentMethodEnum,
           items: {
             create: orderItemsData.map((item) => ({
               foodId: item.foodId,
@@ -265,7 +278,7 @@ export async function POST(req: Request) {
         await tx.table.update({
           where: { id: tableId, restaurantId },
           data: {
-            currentOrderId: newOrder.id,
+            currentOrder: { connect: { id: newOrder.id } },
             status: "OCCUPIED",
           },
         });

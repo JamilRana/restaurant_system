@@ -1,9 +1,9 @@
-// app/admin/tables/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import SearchBar from "@/components/Admin/SearchBar";
 import Pagination from "@/components/Pagination";
 import { RouteLoader } from "@/components/RouteLoader";
@@ -49,7 +49,7 @@ export default function ManageTables() {
   useEffect(() => {
     if (status === "loading") return;
     if (!session || session.user.role !== "ADMIN") {
-      router.push("/Auth");
+      router.push("/auth");
     } else {
       fetchTables(page);
     }
@@ -68,14 +68,11 @@ export default function ManageTables() {
       setData(json);
     } catch (err) {
       console.error(err);
+      toast.error("Failed to load tables");
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchTables(page);
-  }, [page, statusFilter, search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -103,49 +100,63 @@ export default function ManageTables() {
       location: formData.get("location") as string,
     };
 
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (res.ok) {
-      fetchTables(page);
-      closeModal();
-    } else {
-      const err = await res.json();
-      alert(err.error || "Save failed");
+      if (res.ok) {
+        toast.success("Table saved successfully");
+        fetchTables(page);
+        closeModal();
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || "Save failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save table");
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this table? This cannot be undone.")) return;
-    await fetch(`/api/admin/tables?id=${id}`, { method: "DELETE" });
-    fetchTables(page);
+
+    try {
+      const res = await fetch(`/api/admin/tables?id=${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Table deleted");
+        fetchTables(page);
+      } else {
+        throw new Error("Delete failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete table");
+    }
   };
 
   const handleStatusChange = async (id: number, status: string) => {
     setUpdatingStatus(id);
     try {
-      await fetch(`/api/admin/tables`, {
+      const res = await fetch(`/api/admin/tables`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tableId: id, status }),
       });
+
+      if (!res.ok) throw new Error("Update failed");
+
       fetchTables(page);
-    } catch (err) {
+      toast.success("Table status updated");
+    } catch (err: any) {
       console.error("Update failed:", err);
-      toast.error("Failed to update user status");
+      toast.error(err.message || "Failed to update table status");
     } finally {
       setUpdatingStatus(null);
     }
-  };
-
-  // Cycle status: AVAILABLE → OCCUPIED → CLEANING → RESERVED → AVAILABLE
-  const getNextStatus = (current: string) => {
-    const cycle = ["AVAILABLE", "OCCUPIED", "CLEANING", "RESERVED"];
-    const index = cycle.indexOf(current);
-    return cycle[(index + 1) % cycle.length];
   };
 
   const resetFilters = () => {
@@ -154,17 +165,42 @@ export default function ManageTables() {
     setPage(1);
   };
 
-  if (status === "loading" || loading) {
+  if (status === "loading") {
     return <RouteLoader />;
   }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Tables</h1>
-          <p className="text-gray-600">Manage your restaurant seating layout</p>
+        {/* Header with Reservations Button */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-semibold text-gray-900 mb-2">
+              Tables
+            </h1>
+            <p className="text-gray-600">
+              Manage your restaurant seating layout
+            </p>
+          </div>
+          <Link
+            href="/admin/tables/reservation"
+            className="mt-4 md:mt-0 inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm"
+          >
+            <svg
+              className="w-5 h-5 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            View Reservations
+          </Link>
         </div>
 
         {/* Controls */}
@@ -238,11 +274,15 @@ export default function ManageTables() {
           ))}
         </div>
 
-        {/* Tables Grid */}
+        {/* Tables Grid with Loading State */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
           {loading ? (
-            <div className="col-span-full text-center py-10 text-gray-500">
-              Loading...
+            // ✅ LOADING STATE
+            <div className="col-span-full flex justify-center py-12">
+              <div className="flex flex-col items-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600 mb-4"></div>
+                <p className="text-gray-600">Loading tables...</p>
+              </div>
             </div>
           ) : data?.tables.length === 0 ? (
             <div className="col-span-full text-center py-12">
@@ -262,7 +302,6 @@ export default function ManageTables() {
                 onEdit={openEdit}
                 onDelete={handleDelete}
                 onStatusChange={handleStatusChange}
-                getNextStatus={getNextStatus}
                 loading={updatingStatus === table.id}
               />
             ))
@@ -293,20 +332,18 @@ export default function ManageTables() {
   );
 }
 
-// Minimalist Table Card – Mac Design
+// Table Card Component (unchanged)
 function TableCard({
   table,
   onEdit,
   onDelete,
   onStatusChange,
-  getNextStatus,
   loading,
 }: {
   table: Table;
   onEdit: (t: Table) => void;
   onDelete: (id: number) => void;
   onStatusChange: (id: number, status: string) => void;
-  getNextStatus: (status: string) => string;
   loading?: boolean;
 }) {
   const statusStyles = {
@@ -316,11 +353,11 @@ function TableCard({
     CLEANING: "text-gray-700 bg-gray-100 border-gray-200",
   };
 
-  const status = statusStyles[table.status];
+  const statusClass = statusStyles[table.status];
 
   return (
     <div
-      className={`rounded-lg border p-4 text-center bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-default ${status}`}
+      className={`rounded-lg border p-4 text-center bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-default ${statusClass}`}
     >
       {/* Table Number */}
       <div className="text-2xl font-bold text-gray-900 mb-2">
@@ -342,12 +379,19 @@ function TableCard({
         </div>
       )}
 
-      {/* Status Badge */}
-      <div
-        className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full mb-3 capitalize
-          ${status} border`}
-      >
-        {table.status.toLowerCase()}
+      {/* Status Dropdown */}
+      <div className="mb-3">
+        <select
+          value={table.status}
+          onChange={(e) => onStatusChange(table.id, e.target.value)}
+          disabled={loading}
+          className={`w-full text-xs font-medium px-2 py-1 rounded border focus:outline-none focus:ring-1 focus:ring-gray-400 capitalize ${statusClass}`}
+        >
+          <option value="AVAILABLE">Available</option>
+          <option value="OCCUPIED">Occupied</option>
+          <option value="RESERVED">Reserved</option>
+          <option value="CLEANING">Cleaning</option>
+        </select>
       </div>
 
       {/* Quick Actions */}
@@ -358,21 +402,6 @@ function TableCard({
         >
           ✏️ Edit
         </button>
-        {loading ? (
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-            <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
-            <span>Updating...</span>
-          </div>
-        ) : (
-          <button
-            onClick={() =>
-              onStatusChange(table.id, getNextStatus(table.status))
-            }
-            className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded border border-gray-300 transition-colors"
-          >
-            ➡️ {getNextStatus(table.status).slice(0, 4)}
-          </button>
-        )}
         <button
           onClick={() => onDelete(table.id)}
           className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded border border-gray-300 transition-colors"
@@ -391,7 +420,7 @@ function TableCard({
   );
 }
 
-// Clean Modal – Mac Style
+// Table Modal Component with Loading State
 function TableModal({
   table,
   onClose,
@@ -414,8 +443,8 @@ function TableModal({
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    setIsSubmitting(true);
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       const fd = new FormData();
       if (table?.id) fd.append("id", table.id);
@@ -424,9 +453,7 @@ function TableModal({
       });
       await onSubmit(fd);
     } catch (err: any) {
-      if (err?.response?.data?.details) {
-        toast.error("Save failed");
-      }
+      toast.error("Save failed");
     } finally {
       setIsSubmitting(false);
     }
@@ -522,13 +549,32 @@ function TableModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:bg-indigo-400"
+              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:bg-indigo-400 flex items-center"
             >
               {isSubmitting ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span>Saving...</span>
-                </div>
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Saving...
+                </>
               ) : table?.id ? (
                 "Update"
               ) : (

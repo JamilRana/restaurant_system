@@ -1,4 +1,4 @@
-// app/menu/page.tsx
+// app/components/cart/MenuPage.tsx
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
@@ -6,20 +6,23 @@ import MenuSidebar from "./MenuSidebar";
 import Cart from "./Cart";
 import CategorySection from "./CategorySection";
 import { useBasketStore } from "@/app/store/basketStore";
-import { RouteLoader } from "../RouteLoader";
 import { MenuSkeleton } from "./MenuSkeleton";
 
 const MenuPage = () => {
-  const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [basketItemCount, setBasketItemCount] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [allExpanded, setAllExpanded] = useState(true);
   const [expanded, setExpanded] = useState<{ [key: number]: boolean }>({});
   const [activeCategoryId, setActiveCategoryId] = useState<number>(0);
-  const [basketItemCount, setBasketItemCount] = useState(0);
-  const tabContainerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch basket count (example with Zustand)
+  const tabContainerRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Basket count
   useEffect(() => {
     const updateItemCount = () => {
       const basket = useBasketStore.getState().basketItems;
@@ -30,7 +33,7 @@ const MenuPage = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch categories
+  // Fetch menu
   useEffect(() => {
     setLoading(true);
     const fetchCategories = async () => {
@@ -40,10 +43,11 @@ const MenuPage = () => {
         const data = await res.json();
         setCategories(data);
 
-        // Expand all by default
-        const initialExpanded = Object.fromEntries(
-          data.map((cat: any) => [cat.id, true])
-        );
+        // Initialize expanded state - expand all by default
+        const initialExpanded: { [key: number]: boolean } = {};
+        data.forEach((cat: any) => {
+          initialExpanded[cat.id] = true;
+        });
         setExpanded(initialExpanded);
 
         if (data.length > 0) {
@@ -55,7 +59,6 @@ const MenuPage = () => {
         setLoading(false);
       }
     };
-
     fetchCategories();
   }, []);
 
@@ -67,20 +70,11 @@ const MenuPage = () => {
       const hash = window.location.hash.slice(1).toLowerCase();
       if (hash) {
         const target = categories.find(
-          (cat) => cat.name.toLowerCase() === hash
+          (cat) => cat.name.toLowerCase().replace(/\s+/g, "-") === hash
         );
         if (target) {
+          setSelectedCategory(target.id);
           setActiveCategoryId(target.id);
-          setExpanded((prev) => ({ ...prev, [target.id]: true }));
-          sectionRefs.current[target.id]?.scrollIntoView({
-            behavior: "smooth",
-          });
-          setTimeout(() => {
-            const el = sectionRefs.current[target.id];
-            if (el) {
-              el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }
-          }, 100);
         }
       }
     };
@@ -90,55 +84,66 @@ const MenuPage = () => {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [categories]);
 
-  const getScrollOffset = () => {
-    if (window.innerWidth < 768) return 100; // mobile
-    return 80; // desktop
-  };
-
-  const scrollToWithOffset = (el: HTMLElement) => {
-    const offset = getScrollOffset();
-    const y = el.getBoundingClientRect().top + window.scrollY - offset;
-    window.scrollTo({ top: y, behavior: "smooth" });
-  };
-
-  // Toggle category expand
-  const toggleCategory = (id: number) => {
-    const category = categories.find((cat: any) => cat.id === id);
-    if (category) {
-      window.location.hash = category.name.toLowerCase();
+  const handleCategorySelect = (id: number) => {
+    const cat = categories.find((c) => c.id === id);
+    if (cat) {
+      const slug = cat.name.toLowerCase().replace(/\s+/g, "-");
+      window.history.replaceState(null, "", `#${slug}`);
+      setSelectedCategory(id);
     }
+  };
 
-    // Toggle current expanded state
-    setExpanded((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+  const handleBackToAll = () => {
+    setSelectedCategory(null);
+    window.history.replaceState(null, "", window.location.pathname);
+  };
 
+  const toggleAllCategories = () => {
+    setAllExpanded(!allExpanded);
+  };
+
+  // Mobile: Toggle category and scroll
+  const toggleCategory = (id: number) => {
     setActiveCategoryId(id);
 
-    // Scroll after state updates
+    // Check if this category is currently expanded
+    const isCurrentlyExpanded = expanded[id];
+
+    // Create new expanded state
+    const newExpanded: { [key: number]: boolean } = {};
+
+    if (isCurrentlyExpanded) {
+      // If already open, close it
+      newExpanded[id] = false;
+    } else {
+      // Close all, open only this one
+      categories.forEach((cat) => {
+        newExpanded[cat.id] = cat.id === id;
+      });
+    }
+
+    setExpanded(newExpanded);
+
+    // Update URL
+    const category = categories.find((cat) => cat.id === id);
+    if (category) {
+      const slug = category.name.toLowerCase().replace(/\s+/g, "-");
+      window.history.replaceState(null, "", `#${slug}`);
+    }
+
+    // Scroll to category
     setTimeout(() => {
       const el = sectionRefs.current[id];
       if (el) {
-        //el.scrollIntoView({ behavior: "smooth", block: "start" });
-        scrollToWithOffset(el);
+        const offset = window.innerWidth < 768 ? 140 : 100;
+        const y = el.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: y, behavior: "smooth" });
       }
     }, 100);
   };
-
-  // Scroll to basket
   const goToBasket = () => {
     const cartSection = document.getElementById("basket-section");
-    cartSection?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // Toggle expand/collapse all
-  const toggleExpandAll = () => {
-    const allExpanded = categories.every((cat) => expanded[cat.id]);
-    const newState = Object.fromEntries(
-      categories.map((cat) => [cat.id, !allExpanded])
-    );
-    setExpanded(newState);
+    cartSection?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   if (loading) {
@@ -162,29 +167,28 @@ const MenuPage = () => {
       </div>
     );
   }
+
+  const selectedCat = selectedCategory
+    ? categories.find((cat) => cat.id === selectedCategory)
+    : null;
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Mobile: Category Tabs */}
-      <div className="md:hidden bg-white border-b overflow-x-auto whitespace-nowrap sticky top-0 z-50 bg-white pt-4">
-        <div className="flex py-2 px-2">
+      <div
+        ref={tabContainerRef}
+        className="md:hidden bg-white border-b overflow-x-auto whitespace-nowrap sticky top-16 z-40 shadow-sm"
+      >
+        <div className="flex py-2 px-2 gap-2">
           {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => toggleCategory(cat.id)}
-              className={`px-5 py-2 mx-1 rounded-full text-sm font-medium transition ${
+              className={`px-5 py-2 rounded-full text-sm font-medium transition flex-shrink-0 ${
                 activeCategoryId === cat.id
                   ? "bg-blue-600 text-white shadow"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
-              ref={(el) => {
-                if (
-                  activeCategoryId === cat.id &&
-                  el &&
-                  tabContainerRef.current
-                ) {
-                  el.scrollIntoView({ behavior: "smooth", inline: "center" });
-                }
-              }}
             >
               {cat.name}
             </button>
@@ -192,96 +196,108 @@ const MenuPage = () => {
         </div>
       </div>
 
-      {/* Desktop Layout: Sidebar | Menu | Basket */}
-      <div className="hidden md:grid md:grid-cols-4 md:gap-6 p-6 max-w-7xl mx-auto w-full">
-        {/* Sidebar */}
-        <div className="md:col-span-1">
-          <div className="sticky top-20">
+      {/* Desktop Layout */}
+      <div className="hidden md:block">
+        <div
+          className="flex gap-6 p-6 max-w-7xl mx-auto"
+          style={{ height: "calc(100vh - 80px)" }}
+        >
+          {/* Sidebar */}
+          <div className="w-1/4 flex-shrink-0 overflow-y-auto">
             <MenuSidebar
               categories={categories}
-              activeCategory={activeCategoryId}
-              onScrollTo={(id) => toggleCategory(id)} // ✅ Now triggers scroll
+              activeCategory={selectedCategory}
+              onScrollTo={handleCategorySelect}
             />
           </div>
-        </div>
 
-        {/* Menu */}
-        <div className="md:col-span-2 sticky top-20">
-          <div className="flex justify-between items-center mb-4 md:justify-end ">
-            <button
-              onClick={toggleExpandAll}
-              className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
-            >
-              {categories.every((cat) => expanded[cat.id])
-                ? "Collapse All"
-                : "Expand All"}
-            </button>
+          {/* Main Content */}
+          <div className="w-1/2 flex-shrink-0 flex flex-col">
+            {selectedCategory !== null && selectedCat ? (
+              <>
+                <button
+                  onClick={handleBackToAll}
+                  className="w-fit text-blue-600 hover:text-blue-800 font-medium flex items-center mb-4"
+                >
+                  ← Back to All Categories
+                </button>
+                <CategorySection
+                  category={selectedCat.name}
+                  dishes={selectedCat.foods}
+                  expanded={true}
+                  onToggle={() => {}}
+                />
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold">Menu</h2>
+                  <button
+                    onClick={toggleAllCategories}
+                    className="text-sm text-gray-700 hover:text-orange-600 font-medium"
+                  >
+                    {allExpanded ? "Collapse All" : "Expand All"}
+                  </button>
+                </div>
+                <div className="overflow-y-auto pr-2 flex-1">
+                  {categories.map((cat) => (
+                    <CategorySection
+                      key={cat.id}
+                      category={cat.name}
+                      dishes={cat.foods}
+                      expanded={allExpanded}
+                      onToggle={() => {}}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-          {categories.map((cat) => (
-            <div
-              key={cat.id}
-              id={cat.name.toLowerCase()}
-              ref={(el) => {
-                sectionRefs.current[cat.id] = el;
-              }}
-              className="top-10"
-            >
-              <CategorySection
-                category={cat.name}
-                dishes={cat.foods}
-                expanded={expanded[cat.id]}
-                onToggle={() => toggleCategory(cat.id)}
-              />
-            </div>
-          ))}
-        </div>
 
-        {/* Basket */}
-        <div className="md:col-span-1">
-          <div className="sticky top-20">
+          {/* Cart */}
+          <div className="w-1/4 flex-shrink-0 overflow-y-auto">
             <Cart />
           </div>
         </div>
       </div>
 
-      {/* Mobile: Menu + Basket */}
-      <div className="md:hidden px-4 pb-20 sticky top-20">
+      {/* Mobile View */}
+      <div className="md:hidden px-4 pb-20 pt-4">
         {categories.map((cat) => (
           <div
             key={cat.id}
-            id={cat.name.toLowerCase()}
+            id={cat.name.toLowerCase().replace(/\s+/g, "-")}
             ref={(el) => {
               sectionRefs.current[cat.id] = el;
-              // ✅ No return
             }}
+            className="mb-4"
           >
             <CategorySection
               category={cat.name}
               dishes={cat.foods}
-              expanded={expanded[cat.id]}
+              expanded={!!expanded[cat.id]}
               onToggle={() => toggleCategory(cat.id)}
             />
           </div>
         ))}
-        <div id="basket-section" className="md:hidden bg-white border-t">
+
+        <div id="basket-section" className="bg-white border-t pt-4 mt-8">
           <Cart />
         </div>
       </div>
 
-      {/* Mobile: Fixed Basket Button */}
+      {/* Mobile Basket Button */}
       <button
         onClick={goToBasket}
-        className="md:hidden fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium hover:bg-green-700 z-50"
+        className="md:hidden fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium hover:bg-green-700 z-50 transition-all"
       >
         🛒 Basket
         {basketItemCount > 0 && (
-          <span className="bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+          <span className="bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
             {basketItemCount}
           </span>
         )}
       </button>
-
-      {/* Mobile: Sticky Basket at Bottom */}
     </div>
   );
 };

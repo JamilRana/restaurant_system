@@ -10,6 +10,7 @@ import Pagination from "@/components/Pagination";
 import ProtectedRoute from "@/components/Admin/ProtectedRoute";
 import { RouteLoader } from "@/components/RouteLoader";
 
+// Types - ✅ FIXED: Match Prisma schema exactly
 type FoodOption = { id: number; name: string; price: number };
 type Food = { id: number; name: string; price: number; options: FoodOption[] };
 type OrderItem = {
@@ -21,6 +22,15 @@ type OrderItem = {
   food: Food | null;
 };
 type Customer = { id: number; name: string | null; email: string | null };
+type SplitBill = {
+  id: number;
+  amount: number;
+  isPaid: boolean;
+  paymentMethod: "CARD" | "CASH";
+  cashGiven: number | null;
+};
+
+// ✅ FIXED: Updated to match Prisma schema
 type Order = {
   id: number;
   status: "ACCEPTED" | "PREPARING" | "READY" | "DELIVERED" | "REJECTED";
@@ -31,7 +41,14 @@ type Order = {
   items: OrderItem[];
   createdAt: string;
   customer: Customer | null;
-  createdById: number | null; // ✅ Added
+  createdById: number | null;
+  // ✅ PAYMENT FIELDS - Match Prisma exactly
+  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  paymentMethod: "CARD" | "CASH" | null;
+  // Remove isPaid - use paymentStatus instead
+  // Split billing (keep as is)
+  isSplit: boolean;
+  splitBills: SplitBill[];
 };
 
 export default function WaiterDashboard() {
@@ -45,10 +62,7 @@ export default function WaiterDashboard() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-
   const [totalOrdersCount, setTotalOrdersCount] = useState(0);
-
-  // ✅ Only show today's count, not affected by date filter
   const [todayCount, setTodayCount] = useState(0);
 
   const today = new Date();
@@ -66,7 +80,6 @@ export default function WaiterDashboard() {
       let url = `/api/waiter/orders?page=${page}&limit=10`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
 
-      // Only apply date filter in "All" tab
       if (activeTab === "all") {
         if (dateRange.startDate) {
           const start = new Date(dateRange.startDate);
@@ -78,7 +91,6 @@ export default function WaiterDashboard() {
           url += `&endDate=${end.toISOString()}`;
         }
       } else {
-        // "Today" tab: auto-filter today
         const start = new Date(today);
         start.setHours(0, 0, 0, 0);
         const end = new Date(today);
@@ -86,7 +98,6 @@ export default function WaiterDashboard() {
         url += `&startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
       }
 
-      // ✅ Filter only orders created by this staff
       const staffId = session?.user.id;
       if (staffId) {
         url += `&createdById=${staffId}`;
@@ -96,11 +107,17 @@ export default function WaiterDashboard() {
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
 
-      setOrders(data.orders);
+      // ✅ FIXED: Ensure paymentStatus is properly typed
+      const typedOrders = data.orders.map((order: any) => ({
+        ...order,
+        paymentStatus: order.paymentStatus || "PENDING",
+        paymentMethod: order.paymentMethod || null,
+      }));
+
+      setOrders(typedOrders);
       setTotalPages(data.totalPages);
       setTotalOrdersCount(data.totalCount);
 
-      // ✅ Always fetch today's count separately
       const todayRes = await fetch(
         `/api/waiter/orders?limit=1&createdById=${staffId}&startDate=${new Date(
           today.setHours(0, 0, 0, 0)
@@ -301,7 +318,7 @@ function StatBox({
   );
 }
 
-// OrderCard
+// OrderCard - ✅ FIXED: Use paymentStatus instead of isPaid
 function OrderCard({
   order,
   foods,
@@ -314,20 +331,30 @@ function OrderCard({
   isToday: boolean;
 }) {
   const [showAddItem, setShowAddItem] = useState(false);
-  const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [option, setOption] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [searchFood, setSearchFood] = useState("");
-
   const [actionLoading, setActionLoading] = useState<
-    "add" | "edit" | "delete" | "status" | null
+    "add" | "edit" | "delete" | "status" | "payment" | "split" | null
   >(null);
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitAmount, setSplitAmount] = useState("");
 
   const filteredFoods = foods.filter((food) =>
     food.name.toLowerCase().includes(searchFood.toLowerCase())
   );
+
+  // ✅ FIXED: Calculate unpaid amount using paymentStatus
+  const isOrderPaid = order.paymentStatus === "PAID";
+  const unpaidAmount = order.isSplit
+    ? order.splitBills
+        .filter((bill) => !bill.isPaid)
+        .reduce((sum, bill) => sum + bill.amount, 0)
+    : isOrderPaid
+    ? 0
+    : order.finalAmount;
 
   const updateStatus = async (newStatus: string) => {
     setActionLoading("status");
@@ -337,18 +364,94 @@ function OrderCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
+      if (res.ok) {
+        const updatedOrder = await res.json();
+        onUpdate((prev) =>
+          prev.map((o) => (o.id === order.id ? updatedOrder : o))
+        );
+      }
+    } catch (err) {
+      console.error("Status update failed:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ✅ FIXED: Update payment status via API
+  const markAsPaid = async (method: "CARD" | "CASH") => {
+    setActionLoading("payment");
+    try {
+      const res = await fetch(`/api/waiter/orders/${order.id}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentStatus: "PAID",
+          paymentMethod: method,
+        }),
+      });
 
       if (res.ok) {
         const updatedOrder = await res.json();
         onUpdate((prev) =>
           prev.map((o) => (o.id === order.id ? updatedOrder : o))
         );
-      } else {
-        const err = await res.json();
-        alert(`Update failed: ${err.error}`);
       }
-    } catch (err: any) {
-      alert("Network error: " + err.message);
+    } catch (err) {
+      console.error("Payment failed:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const createSplitBill = async () => {
+    const amount = parseFloat(splitAmount);
+    if (isNaN(amount) || amount <= 0 || amount > unpaidAmount) {
+      alert("Enter a valid amount");
+      return;
+    }
+
+    setActionLoading("split");
+    try {
+      const res = await fetch(`/api/waiter/orders/${order.id}/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      if (res.ok) {
+        const updatedOrder = await res.json();
+        onUpdate((prev) =>
+          prev.map((o) => (o.id === order.id ? updatedOrder : o))
+        );
+        setShowSplitModal(false);
+        setSplitAmount("");
+      }
+    } catch (err) {
+      console.error("Split bill failed:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const markSplitAsPaid = async (
+    splitId: number,
+    method: "CARD" | "CASH",
+    cashGiven?: number
+  ) => {
+    setActionLoading("payment");
+    try {
+      const res = await fetch(`/api/waiter/split/${splitId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentMethod: method, cashGiven }),
+      });
+      if (res.ok) {
+        const updatedOrder = await res.json();
+        onUpdate((prev) =>
+          prev.map((o) => (o.id === order.id ? updatedOrder : o))
+        );
+      }
+    } catch (err) {
+      console.error("Split payment failed:", err);
     } finally {
       setActionLoading(null);
     }
@@ -356,46 +459,33 @@ function OrderCard({
 
   const addItem = async () => {
     if (!order?.id || !selectedFood) return;
-
-    const payload = {
-      orderId: order.id,
-      foodId: selectedFood.id,
-      quantity,
-      foodOptionId: option,
-      notes: notes || "",
-    };
-
-    setActionLoading(editingItem ? "edit" : "add");
-
+    setActionLoading("add");
     try {
-      const res = await fetch("/api/waiter/add-item", {
+      const res = await fetch("/api/waiter/orders/add-item", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          orderId: order.id,
+          foodId: selectedFood.id,
+          quantity,
+          foodOptionId: option,
+          notes: notes || "",
+        }),
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-        return;
+      if (res.ok) {
+        const updatedOrder = await res.json();
+        onUpdate((prev) =>
+          prev.map((o) => (o.id === order.id ? updatedOrder : o))
+        );
+        setShowAddItem(false);
+        setSelectedFood(null);
+        setQuantity(1);
+        setOption(null);
+        setNotes("");
+        setSearchFood("");
       }
-
-      const updatedOrder = await res.json();
-      onUpdate((prev) =>
-        prev.map((o) => (o.id === order.id ? updatedOrder : o))
-      );
-
-      // Reset form
-      setShowAddItem(false);
-      setEditingItem(null);
-      setSelectedFood(null);
-      setQuantity(1);
-      setOption(null);
-      setNotes("");
-      setSearchFood("");
-    } catch (err: any) {
-      console.error("Add item error:", err);
-      alert("Network error");
+    } catch (err) {
+      console.error("Add item failed:", err);
     } finally {
       setActionLoading(null);
     }
@@ -404,72 +494,136 @@ function OrderCard({
   const deleteItem = async (item: OrderItem) => {
     if (!confirm(`Remove ${item.quantity}x ${item.food?.name}?`)) return;
     setActionLoading("delete");
-
     try {
-      const res = await fetch(`/api/waiter/add-item/${item.id}`, {
+      const res = await fetch(`/api/waiter/orders/add-item/${item.id}`, {
         method: "DELETE",
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        return alert(`Delete failed: ${err.error}`);
+      if (res.ok) {
+        const updatedOrder = await res.json();
+        onUpdate((prev) =>
+          prev.map((o) => (o.id === order.id ? updatedOrder : o))
+        );
       }
-
-      const updatedOrder = await res.json();
-      onUpdate((prev) =>
-        prev.map((o) => (o.id === order.id ? updatedOrder : o))
-      );
-    } catch (err: any) {
-      alert("Network error: " + err.message);
+    } catch (err) {
+      console.error("Delete item failed:", err);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const statusStyles = {
-    ACCEPTED: "bg-green-100 text-green-800 border-green-300",
-    PREPARING: "bg-yellow-100 text-yellow-800 border-yellow-300",
-    READY: "bg-indigo-100 text-indigo-800 border-indigo-300",
-    DELIVERED: "bg-gray-100 text-gray-600 border-gray-300",
-    REJECTED: "bg-red-100 text-red-800 border-red-300",
-  }[order.status];
+  const statusConfig = {
+    ACCEPTED: {
+      bg: "bg-green-100",
+      text: "text-green-800",
+      border: "border-green-300",
+    },
+    PREPARING: {
+      bg: "bg-yellow-100",
+      text: "text-yellow-800",
+      border: "border-yellow-300",
+    },
+    READY: {
+      bg: "bg-indigo-100",
+      text: "text-indigo-800",
+      border: "border-indigo-300",
+    },
+    DELIVERED: {
+      bg: "bg-gray-100",
+      text: "text-gray-600",
+      border: "border-gray-300",
+    },
+    REJECTED: {
+      bg: "bg-red-100",
+      text: "text-red-800",
+      border: "border-red-300",
+    },
+  };
+  const statusStyle = statusConfig[order.status] || statusConfig.ACCEPTED;
+
+  // ✅ FIXED: Render payment info using paymentStatus
+  const renderPaymentInfo = () => {
+    return (
+      <div className="mt-2">
+        <div className="flex justify-between text-sm">
+          <span>Payment: {order.paymentMethod || "N/A"}</span>
+          {order.paymentMethod === "CASH" && (
+            <span className="text-gray-600">Status: {order.paymentStatus}</span>
+          )}
+        </div>
+        {order.paymentStatus !== "PAID" && (
+          <div className="mt-2 space-y-2">
+            <button
+              onClick={() => markAsPaid("CARD")}
+              disabled={actionLoading === "payment"}
+              className="w-full bg-blue-600 text-white py-1.5 rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-70"
+            >
+              Mark as Paid (Card)
+            </button>
+            <button
+              onClick={() => markAsPaid("CASH")} // ✅ No cash amount prompt
+              disabled={actionLoading === "payment"}
+              className="w-full bg-green-600 text-white py-1.5 rounded text-xs font-medium hover:bg-green-700 disabled:opacity-70"
+            >
+              Mark as Paid (Cash)
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition flex flex-col">
+    <div className="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition flex flex-col h-full">
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
-        <h3 className="font-semibold text-gray-800">Order #{order.id}</h3>
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-medium border ${statusStyles}`}
-        >
-          {order.status}
-        </span>
+        <div>
+          <h3 className="font-bold text-lg text-gray-900">Order #{order.id}</h3>
+          <div className="flex flex-wrap gap-1 mt-1">
+            <span
+              className={`px-2 py-1 rounded-full text-xs font-medium border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}
+            >
+              {order.status}
+            </span>
+            {/* ✅ FIXED: Use paymentStatus for unpaid badge */}
+            {!isOrderPaid && !order.isSplit && (
+              <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium border border-red-300">
+                Unpaid
+              </span>
+            )}
+            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium border border-blue-300">
+              {order.deliveryType}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Guest & Table */}
       <div className="space-y-1 text-sm text-gray-700 mb-3">
-        <p>
-          <strong>{order.customer?.name || "Guest"}</strong>
+        <p className="font-medium">
+          {order.customer?.name || "Guest"}
+          {order.customer?.email && (
+            <span className="block text-xs text-gray-500">
+              {order.customer.email}
+            </span>
+          )}
         </p>
         {order.deliveryType === "DINEIN" && (
-          <p className="text-blue-600">
+          <p className="text-blue-600 font-medium">
             Table {order.currentTableFor?.number || "?"}
           </p>
         )}
       </div>
 
-      {/* Items */}
-      <div className="flex-1 max-h-32 overflow-y-auto mb-4 text-sm">
+      {/* Items Summary */}
+      <div className="flex-1 max-h-32 overflow-y-auto mb-4 text-sm bg-gray-50 p-2 rounded">
         {order.items.length === 0 ? (
-          <p className="text-gray-400 italic">No items</p>
+          <p className="text-gray-400 italic text-center py-1">No items</p>
         ) : (
           <ul className="space-y-1">
             {order.items.map((item) => (
-              <li key={item.id} className="flex justify-between border-b pb-1">
-                <div>
-                  <span>
-                    {item.quantity}x {item.food?.name}
-                  </span>
+              <li key={item.id} className="flex justify-between">
+                <div className="font-medium">
+                  {item.quantity}x {item.food?.name}
                   {item.foodOptionId && (
                     <span className="text-blue-600 ml-1">
                       (+
@@ -481,72 +635,64 @@ function OrderCard({
                       )
                     </span>
                   )}
-                  {item.notes && (
-                    <div className="text-xs text-gray-500">{item.notes}</div>
-                  )}
                 </div>
-                {isToday && (
-                  <button
-                    onClick={() => deleteItem(item)}
-                    disabled={actionLoading === "delete"}
-                    className="text-red-600 hover:underline text-xs disabled:opacity-50"
-                  >
-                    {actionLoading === "delete" ? (
-                      <div className="w-3 h-3 border-2 border-t-transparent border-red-500 rounded-full animate-spin" />
-                    ) : (
-                      "🗑️"
-                    )}
-                  </button>
-                )}
+                <span className="font-bold text-green-700">
+                  £{item.price * item.quantity}
+                </span>
               </li>
             ))}
           </ul>
         )}
       </div>
 
-      {/* Total */}
+      {/* Total & Payment */}
       <div className="border-t pt-2 mb-4">
-        <div className="flex justify-between text-sm font-medium">
+        <div className="flex justify-between text-lg font-bold text-gray-900">
           Total: <span>£{order.finalAmount}</span>
         </div>
+        {renderPaymentInfo()}
       </div>
 
-      {/* Actions */}
+      {/* Action Buttons */}
       {isToday && (
         <div className="space-y-2">
           <select
             value={order.status}
             onChange={(e) => updateStatus(e.target.value)}
             disabled={actionLoading === "status"}
-            className="w-full border rounded-lg px-3 py-1.5 text-sm disabled:opacity-60"
+            className="w-full border rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60"
           >
-            <option value="ACCEPTED">Accept Order</option>
-            <option value="PREPARING">Preparing</option>
-            <option value="READY">Ready</option>
-            <option value="DELIVERED">Deliver</option>
+            <option value="ACCEPTED">✅ Accept</option>
+            <option value="PREPARING">👨‍🍳 Preparing</option>
+            <option value="READY">🎉 Ready</option>
+            <option value="DELIVERED">📦 Delivered</option>
           </select>
 
           <button
             onClick={() => {
-              setEditingItem(null);
-              setSelectedFood(null);
-              setQuantity(1);
-              setOption(null);
-              setNotes("");
-              setSearchFood("");
               setShowAddItem(!showAddItem);
+              if (!showAddItem) {
+                setSelectedFood(null);
+                setQuantity(1);
+                setOption(null);
+                setNotes("");
+                setSearchFood("");
+              }
             }}
-            disabled={actionLoading !== null}
-            className="w-full bg-blue-600 text-white py-1.5 rounded-lg text-sm hover:bg-blue-700 disabled:bg-gray-400 transition"
+            disabled={actionLoading !== null || order.paymentStatus === "PAID"}
+            hidden={
+              order.deliveryType === "PICKUP" || order.paymentStatus === "PAID"
+            }
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 disabled:bg-gray-400 transition"
           >
             + Add Item
           </button>
         </div>
       )}
 
-      {/* Add Item Form */}
+      {/* Quick Add Form */}
       {showAddItem && (
-        <div className="mt-3 p-3 bg-gray-50 rounded-lg border text-sm animate-fade-in">
+        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200 animate-fade-in">
           {!selectedFood ? (
             <>
               <input
@@ -554,12 +700,12 @@ function OrderCard({
                 value={searchFood}
                 onChange={(e) => setSearchFood(e.target.value)}
                 placeholder="Search food..."
-                className="w-full border p-1.5 rounded text-sm mb-2"
+                className="w-full border border-blue-300 p-2 rounded text-sm mb-2"
                 autoFocus
               />
-              <div className="max-h-36 overflow-y-auto border rounded">
+              <div className="max-h-40 overflow-y-auto border border-blue-200 rounded">
                 {filteredFoods.length === 0 ? (
-                  <p className="p-2 text-gray-500 text-xs">No food found</p>
+                  <p className="p-2 text-gray-500 text-sm">No food found</p>
                 ) : (
                   filteredFoods.map((food) => (
                     <div
@@ -568,9 +714,10 @@ function OrderCard({
                         setSelectedFood(food);
                         setSearchFood("");
                       }}
-                      className="p-2 hover:bg-blue-50 cursor-pointer border-b text-xs last:border-b-0"
+                      className="p-2 hover:bg-blue-100 cursor-pointer border-b border-blue-100 text-sm last:border-b-0"
                     >
-                      {food.name} (£{food.price})
+                      <div className="font-medium">{food.name}</div>
+                      <div className="text-xs text-gray-600">£{food.price}</div>
                     </div>
                   ))
                 )}
@@ -578,15 +725,10 @@ function OrderCard({
             </>
           ) : (
             <div className="space-y-2">
-              <div className="flex justify-between">
-                <strong>{selectedFood.name}</strong>
+              <div className="flex justify-between items-center">
+                <strong className="text-sm">{selectedFood.name}</strong>
                 <button
-                  onClick={() => {
-                    setSelectedFood(null);
-                    setOption(null);
-                    setQuantity(1);
-                    setNotes("");
-                  }}
+                  onClick={() => setSelectedFood(null)}
                   className="text-xs text-red-600 hover:underline"
                 >
                   ← Change
@@ -599,12 +741,12 @@ function OrderCard({
                   onChange={(e) =>
                     setOption(e.target.value ? Number(e.target.value) : null)
                   }
-                  className="w-full border p-1.5 rounded text-sm"
+                  className="w-full border p-2 rounded text-sm"
                 >
                   <option value="">No Option</option>
                   {selectedFood.options.map((opt) => (
                     <option key={opt.id} value={opt.id}>
-                      {opt.name} (+£{opt.price.toFixed(2)})
+                      {opt.name} (+£{opt.price})
                     </option>
                   ))}
                 </select>
@@ -617,43 +759,28 @@ function OrderCard({
                 onChange={(e) =>
                   setQuantity(Math.max(1, Number(e.target.value)))
                 }
-                className="w-full border p-1.5 rounded text-sm"
-                placeholder="Qty"
+                className="w-full border p-2 rounded text-sm"
+                placeholder="Quantity"
               />
               <input
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full border p-1.5 rounded text-sm"
-                placeholder="Notes (e.g., no onions)"
+                className="w-full border p-2 rounded text-sm"
+                placeholder="Special instructions"
               />
 
               <div className="flex gap-2">
                 <button
                   onClick={addItem}
-                  disabled={actionLoading !== null}
-                  className="flex-1 bg-green-600 text-white p-1.5 rounded text-xs hover:bg-green-700 disabled:bg-gray-400"
+                  disabled={actionLoading === "add"}
+                  className="flex-1 bg-green-600 text-white p-2 rounded font-medium hover:bg-green-700 disabled:bg-gray-400 text-sm"
                 >
-                  {actionLoading === "add" ? (
-                    <div className="flex items-center justify-center gap-1">
-                      <div className="w-3 h-3 border-2 border-t-transparent border-white rounded-full animate-spin" />
-                      Adding...
-                    </div>
-                  ) : (
-                    "Add to Order"
-                  )}
+                  {actionLoading === "add" ? "Adding..." : "Add to Order"}
                 </button>
                 <button
-                  onClick={() => {
-                    setShowAddItem(false);
-                    setEditingItem(null);
-                    setSelectedFood(null);
-                    setQuantity(1);
-                    setOption(null);
-                    setNotes("");
-                  }}
-                  disabled={actionLoading !== null}
-                  className="px-2 py-1.5 bg-gray-300 rounded text-xs hover:bg-gray-400 disabled:opacity-50"
+                  onClick={() => setShowAddItem(false)}
+                  className="px-3 py-2 bg-gray-300 rounded font-medium hover:bg-gray-400 text-sm"
                 >
                   Cancel
                 </button>
